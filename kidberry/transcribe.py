@@ -23,8 +23,8 @@ from pathlib import Path
 
 import numpy as np
 
-from . import config, settings
-from .db import connect
+from . import config, hardware, settings
+from .db import connect, covers, process_range
 
 SR = 16000
 WINDOW_S = 30.0
@@ -102,17 +102,86 @@ def enhance(src: Path) -> Path:
     return dst
 
 
+def _pcm16_mono_16k(path: Path) -> tuple[int, int] | None:
+    """(byte offset, samples) of the audio data if this is a 16 kHz mono 16-bit PCM WAV, else None."""
+    with open(path, "rb") as f:
+        if f.read(4) != b"RIFF":
+            return None
+        f.read(4)
+        if f.read(4) != b"WAVE":
+            return None
+        ok = False
+        while True:
+            head = f.read(8)
+            if len(head) < 8:
+                return None
+            cid, size = head[:4], int.from_bytes(head[4:], "little")
+            if cid == b"fmt ":
+                fmt_ = f.read(size)
+                fmt_code, channels = int.from_bytes(fmt_[0:2], "little"), int.from_bytes(fmt_[2:4], "little")
+                rate, bits = int.from_bytes(fmt_[4:8], "little"), int.from_bytes(fmt_[14:16], "little")
+                ok = fmt_code == 1 and channels == 1 and rate == SR and bits == 16
+                if size % 2:
+                    f.read(1)
+            elif cid == b"data":
+                return (f.tell(), size // 2) if ok else None
+            else:
+                f.seek(size + size % 2, 1)
+
+
+class AudioFile:
+    """A recording read on demand: slicing returns float32 samples in [-1, 1].
+
+    The processed files (16 kHz mono 16-bit WAV) are read from disk one slice at a time, so a 5-hour
+    file costs almost no RAM instead of ~1.7 GB. Other formats are decoded fully with ffmpeg."""
+
+    def __init__(self, path: Path):
+        info = _pcm16_mono_16k(Path(path))
+        self._arr = None if info else load_audio(path)
+        if info:
+            self._offset, self._n = info
+            self._f = open(path, "rb")
+
+    def __len__(self) -> int:
+        return len(self._arr) if self._arr is not None else self._n
+
+    def __getitem__(self, sl: slice) -> np.ndarray:
+        if self._arr is not None:
+            return self._arr[sl]
+        start, stop, step = sl.indices(self._n)
+        if step != 1:
+            raise ValueError("AudioFile only supports contiguous slices")
+        count = max(0, stop - start)
+        self._f.seek(self._offset + 2 * start)
+        return np.fromfile(self._f, np.int16, count).astype(np.float32) / 32768.0
+
+    def close(self) -> None:
+        if self._arr is None:
+            self._f.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
 def load_audio(path: Path) -> np.ndarray:
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(path), "-f", "s16le", "-ac", "1",
                           "-ar", str(SR), "-"], capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
-def windows(audio: np.ndarray):
+def windows(audio):
     """Yield (start_s, end_s) windows of <=30s, cut at the quietest 100ms frame near the end."""
     frame = int(FRAME_S * SR)
     n_frames = len(audio) // frame
-    energy = np.sqrt(np.mean(audio[: n_frames * frame].reshape(n_frames, frame) ** 2, axis=1))
+    energy = np.empty(n_frames, np.float32)
+    block = 6000                                   # frames per block (10 min), so memory stays small
+    for i in range(0, n_frames, block):
+        j = min(i + block, n_frames)
+        x = audio[i * frame: j * frame].reshape(j - i, frame)
+        energy[i:j] = np.sqrt(np.mean(x ** 2, axis=1))
     total = len(audio) / SR
     pos = 0.0
     while pos < total - 0.5:
@@ -178,29 +247,32 @@ def filter_reason(text: str, avg_logprob: float, no_speech_prob: float, compress
 
 def models_needed(langs: list[str]) -> list[str]:
     """The speech models a set of languages needs (what will be downloaded and loaded)."""
+    general = hardware.profile().model_general
     need = []
     if "he" in langs:
         need.append(config.MODEL_HEBREW)
-    if any(l != "he" for l in langs) and config.MODEL_GENERAL not in need:
-        need.append(config.MODEL_GENERAL)
+    if any(l != "he" for l in langs) and general not in need:
+        need.append(general)
     return need
 
 
 class Transcriber:
     def __init__(self, langs: list[str] | None = None):
-        _load_cuda_dlls()
+        hw = hardware.profile()
+        if hw.device == "cuda":
+            _load_cuda_dlls()
         from faster_whisper import WhisperModel
         self.langs = langs or settings.languages()
         names = ", ".join(settings.LANGUAGE_NAMES[l] for l in self.langs)
         need = models_needed(self.langs)
-        print(f"Languages: {names}. Loading {' + '.join(need)} on {config.DEVICE}...")
+        print(f"Languages: {names}. Loading {' + '.join(need)} on {hw.device} ({hw.compute_type})...")
 
         def load(m):
-            return WhisperModel(m, device=config.DEVICE, compute_type=config.COMPUTE_TYPE)
-        self.general = load(config.MODEL_GENERAL) if config.MODEL_GENERAL in need else None
+            return WhisperModel(m, device=hw.device, compute_type=hw.compute_type, cpu_threads=hw.cpu_threads)
+        self.general = load(hw.model_general) if hw.model_general in need else None
         if "he" not in self.langs:
             self.hebrew = None
-        elif config.MODEL_HEBREW == config.MODEL_GENERAL:
+        elif config.MODEL_HEBREW == hw.model_general:
             self.hebrew = self.general
         else:
             self.hebrew = load(config.MODEL_HEBREW)
@@ -237,9 +309,10 @@ class Transcriber:
         return list(segs)
 
     def run(self, conn, rec_id: int, path: Path, fresh: bool = False) -> None:
-        """Transcribe one file. Progress is saved every CHECKPOINT_S seconds of audio; a file that was
-        interrupted (killed, power loss, Ctrl+C) continues from its last checkpoint unless fresh=True.
-        Resuming is exact because the windows are cut deterministically from the same processed audio."""
+        """Transcribe one file - only the kindergarten hours (plus a margin) when they are set for its day.
+        Progress is saved every CHECKPOINT_S seconds of audio; a file that was interrupted (killed, power
+        loss, Ctrl+C) continues from its last checkpoint unless fresh=True. The windows are cut the same
+        way from the same processed audio, so a resumed file lines up with what was already saved."""
         conn.execute("UPDATE recordings SET status='processing', error=NULL WHERE id=?", (rec_id,))
         conn.commit()
         t0 = time.time()
@@ -249,24 +322,33 @@ class Transcriber:
         processed = enhance(path)
         conn.execute("UPDATE recordings SET processed_path=? WHERE id=?", (str(processed), rec_id))
         conn.commit()
-        audio = load_audio(processed)
+        audio = AudioFile(processed)
         duration = len(audio) / SR
-        print(f" done ({fmt(duration)})")
+        rec = conn.execute("SELECT * FROM recordings WHERE id=?", (rec_id,)).fetchone()
+        lo, hi = process_range(conn, rec, duration)
+        part = f", transcribing {fmt(lo)}-{fmt(hi)} (kindergarten hours)" if (lo, hi) != (0.0, duration) else ""
+        print(f" done ({fmt(duration)}{part})")
 
-        done_until = conn.execute("SELECT transcribed_until FROM recordings WHERE id=?", (rec_id,)).fetchone()[0]
-        if fresh or not existed or not done_until:   # new processed audio means old windows may not line up
-            done_until = 0.0
+        done_until = rec["transcribed_until"]
+        same_range = rec["transcribed_range"] == json.dumps([lo, hi])
+        if fresh or not existed or not done_until or not same_range:
+            done_until = 0.0                       # start over: new audio or a different part of the file
             with conn:
                 conn.execute("DELETE FROM segments WHERE recording_id=?", (rec_id,))
-                conn.execute("UPDATE recordings SET transcribed_until=0 WHERE id=?", (rec_id,))
+                conn.execute("UPDATE recordings SET transcribed_until=0, transcribed_range=? WHERE id=?",
+                             (json.dumps([lo, hi]), rec_id))
         else:
             with conn:   # drop anything written after the checkpoint (there should be none)
                 conn.execute("DELETE FROM segments WHERE recording_id=? AND start>=?", (rec_id, done_until))
-            print(f"  resuming from {fmt(done_until)} ({done_until / duration:.0%} was already done)")
+            print(f"  resuming from {fmt(done_until)} ({(done_until - lo) / max(hi - lo, 1):.0%} was already done)")
+        todo_s = hi - max(lo, done_until)
+        if todo_s > 0:
+            print(f"  estimated {hardware.fmt_minutes(todo_s / hardware.speed('transcribe') / 60)} on this PC")
 
         kept, dropped = conn.execute(
             "SELECT count(*) - count(filtered), count(filtered) FROM segments WHERE recording_id=?", (rec_id,)).fetchone()
-        rows, last_save, started_at = [], done_until, done_until
+        rows, last_save, started_at = [], done_until, max(lo, done_until)
+        t_work = time.time()
 
         def save(until: float) -> None:
             with conn:
@@ -277,7 +359,7 @@ class Transcriber:
             rows.clear()
 
         for w_start, w_end in windows(audio):
-            if w_end <= done_until + 0.01:
+            if w_end <= done_until + 0.01 or w_end <= lo or w_start >= hi:
                 continue
             chunk = audio[int(w_start * SR): int(w_end * SR)]
             lang = self.language(chunk)
@@ -295,10 +377,11 @@ class Transcriber:
                 save(w_end)
                 last_save = w_end
             elapsed = time.time() - t0
-            print(f"\r  {w_end / duration:6.1%}  [{fmt(w_end)}]  kept {kept}, filtered {dropped}"
-                  f"  ({(w_end - started_at) / max(elapsed, 1):.0f}x realtime)   ", end="", flush=True)
+            print(f"\r  {(w_end - lo) / max(hi - lo, 1):6.1%}  [{fmt(w_end)}]  kept {kept}, filtered {dropped}"
+                  f"  ({(w_end - started_at) / max(time.time() - t_work, 1):.0f}x realtime)   ", end="", flush=True)
         print()
         save(duration)
+        hardware.record_speed("transcribe", hi - started_at, time.time() - t_work)
 
         langs = dict(conn.execute("SELECT language, count(*) FROM segments WHERE recording_id=? AND filtered IS NULL"
                                   " GROUP BY language", (rec_id,)).fetchall())
@@ -339,20 +422,34 @@ def main() -> None:
     todo = []
     for path in find_wavs(args.inputs):
         rec_id = register(conn, path)
-        status = conn.execute("SELECT status FROM recordings WHERE id=?", (rec_id,)).fetchone()["status"]
-        if status == "done" and not args.force:
-            print(f"[skip] already transcribed: {path.name}")
+        rec = conn.execute("SELECT * FROM recordings WHERE id=?", (rec_id,)).fetchone()
+        if rec["status"] == "done" and not args.force:
+            if rec["duration"] and not covers(rec["transcribed_range"], process_range(conn, rec, rec["duration"])):
+                print(f"[redo] {path.name}: the kindergarten hours now include time that was not transcribed")
+                todo.append((rec_id, path, True))
+            else:
+                print(f"[skip] already transcribed: {path.name}")
         else:
-            todo.append((rec_id, path))
+            todo.append((rec_id, path, args.force))
     if not todo:
         print("Nothing to do.")
         return
 
+    hw = hardware.profile()
+    print(f"Hardware: {hw.summary()}")
+    for note in hw.notes + [hardware.battery_warning()]:
+        if note:
+            print(f"  ! {note}")
     tr = Transcriber()
-    for i, (rec_id, path) in enumerate(todo, 1):
+    with hardware.keep_awake():
+        _run_all(conn, tr, todo)
+
+
+def _run_all(conn, tr, todo) -> None:
+    for i, (rec_id, path, fresh) in enumerate(todo, 1):
         print(f"[{i}/{len(todo)}] {path.name}")
         try:
-            tr.run(conn, rec_id, path, fresh=args.force)
+            tr.run(conn, rec_id, path, fresh=fresh)
         except KeyboardInterrupt:
             conn.execute("UPDATE recordings SET status='pending' WHERE id=?", (rec_id,))
             conn.commit()

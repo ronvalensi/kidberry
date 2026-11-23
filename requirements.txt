@@ -1,6 +1,7 @@
 faster-whisper>=1.1.0
 nvidia-cublas-cu12
 nvidia-cudnn-cu12==9.*
+psutil>=5.9        # hardware check: memory, CPU cores, battery
 fastapi>=0.110
 uvicorn>=0.29
 anthropic>=0.70   # only for KIDBERRY_AI_BACKEND=api

@@ -295,18 +295,7 @@ def print_usage(conn) -> None:
 
 # ---------------------------------------------------------------- kindergarten hours
 
-def school_window(conn, rec) -> tuple[float, float] | None:
-    """(from, to) offsets in seconds into the recording that fall between drop-off and pickup,
-    or None when no hours are set for that day (then the whole recording is analyzed)."""
-    if not rec["started_at"]:
-        return None
-    t0 = datetime.fromisoformat(rec["started_at"])
-    row = conn.execute("SELECT dropoff, pickup FROM school_hours WHERE day=?", (t0.date().isoformat(),)).fetchone()
-    if not row:
-        return None
-    def offset(hhmm):
-        return (datetime.combine(t0.date(), datetime.strptime(hhmm, "%H:%M").time()) - t0).total_seconds()
-    return offset(row["dropoff"]), offset(row["pickup"])
+from .db import school_window  # noqa: E402  (kept importable from here)
 
 
 def segments_in_hours(conn, rec, cols: str) -> list:

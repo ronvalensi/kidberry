@@ -1,6 +1,7 @@
 """Sound-event detection: crying, screaming, yelling, slaps/impacts - from the audio itself.
 
-Catches incidents that have no clear words. Runs locally on the GPU (free).
+Catches incidents that have no clear words. Runs locally (free), on the GPU when there is one.
+Only the kindergarten hours (plus a margin) are scanned when they are set for the day.
 
 Usage:
     python -m kidberry.sounds              # every transcribed recording not scanned yet
@@ -10,8 +11,8 @@ Usage:
     python -m kidberry.sounds --stats      # how often each sound occurs (for tuning thresholds)
 
 Model: Audio Spectrogram Transformer fine-tuned on Google AudioSet (527 sound classes), 16 kHz native.
-The audio is scored in 10-second windows every 5 seconds; per-window scores are stored, so thresholds
-can be tuned later with --redetect without re-scanning.
+The audio is scored in 10-second windows every 5 seconds (every 10 s on a PC without a GPU, to halve the
+time); per-window scores are stored, so thresholds can be tuned later with --redetect without re-scanning.
 """
 import argparse
 import json
@@ -20,8 +21,8 @@ import time
 
 import numpy as np
 
-from . import config
-from .db import connect
+from . import config, hardware
+from .db import connect, covers, process_range
 
 MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
 SR = 16000
@@ -85,7 +86,11 @@ class Scanner:
         import torch
         from transformers import ASTFeatureExtractor, ASTForAudioClassification
         self.torch = torch
-        self.device = "cuda" if torch.cuda.is_available() and config.DEVICE == "cuda" else "cpu"
+        hw = hardware.profile()
+        self.device = "cuda" if hw.device == "cuda" and torch.cuda.is_available() else "cpu"
+        self.hop = hw.sound_hop
+        if self.device == "cpu":
+            torch.set_num_threads(hw.cpu_threads)
         print(f"Loading sound model {MODEL} on {self.device}...")
         self.fe = ASTFeatureExtractor.from_pretrained(MODEL)
         self.model = ASTForAudioClassification.from_pretrained(MODEL).to(self.device).eval()
@@ -98,10 +103,11 @@ class Scanner:
         self.classes = sorted({c for cs in GROUPS.values() for c in cs})
         self.class_idx = [label2id[c] for c in self.classes]
 
-    def scan(self, audio: np.ndarray):
-        """Yield (start_seconds, {class: score}) for each window."""
+    def scan(self, audio, lo: float = 0.0, hi: float | None = None):
+        """Yield (start_seconds, {class: score}) for each window between lo and hi seconds."""
         n = int(WIN * SR)
-        starts = np.arange(0, max(len(audio) - SR, 1), HOP * SR).astype(int)
+        end = len(audio) if hi is None else min(len(audio), int(hi * SR))
+        starts = np.arange(int(lo * SR), max(end - SR, int(lo * SR) + 1), self.hop * SR).astype(int)
         for b in range(0, len(starts), BATCH):
             chunk_starts = starts[b: b + BATCH]
             chunks = []
@@ -120,17 +126,21 @@ class Scanner:
 
 
 def scan_recording(conn, scanner: Scanner, rec) -> None:
-    from .transcribe import load_audio
+    from .transcribe import AudioFile
     t0 = time.time()
-    audio = load_audio(rec["processed_path"] or rec["path"])
+    audio = AudioFile(rec["processed_path"] or rec["path"])
+    lo, hi = process_range(conn, rec, len(audio) / SR)
+    print(f"  estimated {hardware.fmt_minutes((hi - lo) / hardware.speed('sounds') / 60)} on this PC")
     rows = []
-    for start, scores in scanner.scan(audio):
+    for start, scores in scanner.scan(audio, lo, hi):
         rows.append((rec["id"], start, json.dumps(scores)))
-        if len(rows) % 200 == 0:
-            print(f"\r  {start / (len(audio) / SR):6.1%}", end="", flush=True)
+        if len(rows) % 50 == 0:
+            print(f"\r  {(start - lo) / max(hi - lo, 1):6.1%}", end="", flush=True)
     with conn:
         conn.execute("DELETE FROM sound_scores WHERE recording_id=?", (rec["id"],))
         conn.executemany("INSERT INTO sound_scores (recording_id, start, scores) VALUES (?,?,?)", rows)
+        conn.execute("UPDATE recordings SET sounds_range=? WHERE id=?", (json.dumps([lo, hi]), rec["id"]))
+    hardware.record_speed("sounds", hi - lo, time.time() - t0)
     print(f"\r  scanned {len(rows)} windows in {(time.time() - t0) / 60:.1f} min")
 
 
@@ -256,16 +266,18 @@ def main() -> None:
         sys.exit("No transcribed recordings found.")
 
     scanner = None
-    for rec in recs:
-        print(f"[{rec['id']}] {rec['name']}")
-        if args.stats:
-            stats(conn, rec)
-            continue
-        scanned = conn.execute("SELECT COUNT(*) FROM sound_scores WHERE recording_id=?", (rec["id"],)).fetchone()[0]
-        if not args.redetect and (args.force or not scanned):
-            scanner = scanner or Scanner()
-            scan_recording(conn, scanner, rec)
-        print(f"  {sound_flags(conn, rec)} sound flags")
+    with hardware.keep_awake():
+        for rec in recs:
+            print(f"[{rec['id']}] {rec['name']}")
+            if args.stats:
+                stats(conn, rec)
+                continue
+            scanned = conn.execute("SELECT COUNT(*) FROM sound_scores WHERE recording_id=?", (rec["id"],)).fetchone()[0]
+            wider = scanned and rec["duration"] and not covers(rec["sounds_range"], process_range(conn, rec, rec["duration"]))
+            if not args.redetect and (args.force or not scanned or wider):
+                scanner = scanner or Scanner()
+                scan_recording(conn, scanner, rec)
+            print(f"  {sound_flags(conn, rec)} sound flags")
 
 
 if __name__ == "__main__":

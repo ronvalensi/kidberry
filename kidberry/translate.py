@@ -38,8 +38,9 @@ class Translator:
     def __init__(self, model: str):
         import torch
         from transformers import MarianMTModel, MarianTokenizer
+        from . import hardware
         self.torch = torch
-        self.device = "cuda" if torch.cuda.is_available() and config.DEVICE == "cuda" else "cpu"
+        self.device = "cuda" if hardware.profile().device == "cuda" and torch.cuda.is_available() else "cpu"
         self.tok = MarianTokenizer.from_pretrained(model)
         self.model = MarianMTModel.from_pretrained(model).to(self.device).eval()
 

@@ -16,8 +16,7 @@ ENGLISH_MIN_PROB = float(os.environ.get("KIDBERRY_ENGLISH_MIN_PROB", "0.5"))
 SPANISH_MIN_PROB = float(os.environ.get("KIDBERRY_SPANISH_MIN_PROB", "0.6"))  # below this, "Spanish" is usually noise
 RUSSIAN_MIN_PROB = float(os.environ.get("KIDBERRY_RUSSIAN_MIN_PROB", "0.6"))
 LANGUAGE_MIN_PROB = {"en": ENGLISH_MIN_PROB, "es": SPANISH_MIN_PROB, "ru": RUSSIAN_MIN_PROB}
-DEVICE = os.environ.get("KIDBERRY_DEVICE", "cuda")
-COMPUTE_TYPE = os.environ.get("KIDBERRY_COMPUTE", "float16")
+# GPU or CPU, and how: see hardware.py (KIDBERRY_DEVICE=cpu|cuda and KIDBERRY_COMPUTE override it).
 
 # Audio enhancement applied before transcription. The recorder audio is quiet/muffled, so we
 # remove rumble and normalize loudness dynamically (quiet speech is raised, loud bursts are not).

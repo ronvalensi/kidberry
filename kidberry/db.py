@@ -1,3 +1,4 @@
+import json
 import shutil
 import sqlite3
 from datetime import datetime
@@ -120,7 +121,13 @@ def _v3_translation_language(conn):
     conn.execute("UPDATE segments SET translation_lang='en' WHERE translation IS NOT NULL")
 
 
-UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint, _v3_translation_language]
+def _v4_processed_range(conn):
+    # Which part of each file was transcribed / sound-scanned ([from, to] seconds as JSON). Only the
+    # kindergarten hours (plus a margin) are processed when they are set; NULL = the whole file.
+    _add_columns(conn, "recordings", {"transcribed_range": "TEXT", "sounds_range": "TEXT"})
+
+
+UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint, _v3_translation_language, _v4_processed_range]
 SCHEMA_VERSION = len(UPGRADES)
 
 
@@ -140,6 +147,40 @@ def _upgrade(conn) -> None:
         with conn:
             step(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
+def school_window(conn, rec) -> tuple[float, float] | None:
+    """(from, to) offsets in seconds into the recording that fall between drop-off and pickup,
+    or None when no hours are set for that day (then the whole recording is used)."""
+    if not rec["started_at"]:
+        return None
+    t0 = datetime.fromisoformat(rec["started_at"])
+    row = conn.execute("SELECT dropoff, pickup FROM school_hours WHERE day=?", (t0.date().isoformat(),)).fetchone()
+    if not row:
+        return None
+
+    def offset(hhmm):
+        return (datetime.combine(t0.date(), datetime.strptime(hhmm, "%H:%M").time()) - t0).total_seconds()
+    return offset(row["dropoff"]), offset(row["pickup"])
+
+
+PROCESS_MARGIN_S = 300.0   # also process 5 min before drop-off and after pickup
+
+
+def process_range(conn, rec, duration: float) -> tuple[float, float]:
+    """The part of a file to transcribe and scan: the kindergarten hours plus a margin, or all of it."""
+    win = school_window(conn, rec)
+    if not win:
+        return 0.0, duration
+    return max(0.0, win[0] - PROCESS_MARGIN_S), min(duration, max(0.0, win[1] + PROCESS_MARGIN_S))
+
+
+def covers(stored: str | None, want: tuple[float, float]) -> bool:
+    """Does a stored [from, to] range (NULL = whole file) include the wanted range?"""
+    if not stored:
+        return True
+    lo, hi = json.loads(stored)
+    return lo <= want[0] + 1 and hi >= want[1] - 1
 
 
 def connect() -> sqlite3.Connection:

@@ -10,8 +10,8 @@ transcript **text** sent to the AI provider you choose.
 > conclusion. Recording conversations you are not part of may be illegal where you live (in Israel, see the
 > Secret Monitoring Law); you are responsible for checking the law and for how you use the recordings.
 
-> Work in progress: installer, CPU support, choice of AI provider and a Hebrew interface are being built.
-> Today it needs Windows, Python 3.11, ffmpeg and an NVIDIA GPU.
+> Work in progress: installer, choice of AI provider and a Hebrew interface are being built.
+> Today it needs Windows, Python 3.11 and ffmpeg. An NVIDIA GPU makes it much faster but is not required.
 
 ## Setup (once)
 
@@ -93,6 +93,30 @@ does not mistake them for yours.
 In the UI, click any transcript line to hear it (playback starts 3s early). The timeline bar shows where speech
 happens. Use "Search all recordings" to find a word across every day.
 
+## GPU or CPU
+
+```powershell
+.\.venv\Scripts\python -m kidberry.hardware   # what this PC will use, memory check, time for a day
+```
+
+| Profile | When | How it runs | An 8-hour day |
+|---|---|---|---|
+| `gpu` | NVIDIA GPU with 6 GB+ | float16, full models | under an hour |
+| `gpu-small` | NVIDIA GPU with 3-6 GB | compressed (int8_float16), same models | about 1-2 hours |
+| `cpu` | no usable GPU (most laptops) | int8 on all cores, lighter general model (`large-v3-turbo`), sounds checked every 10 s | several hours: run it overnight |
+
+On a CPU, Hebrew-only is about twice as fast as several languages (no per-window language detection).
+Speeds are measured on each run (`data\speed.json`), so estimates fit the PC after the first day.
+Force a profile with `"hardware": {"device": "cpu"}` in `data\settings.json`, or `KIDBERRY_DEVICE=cpu`.
+
+Also:
+- **Only the kindergarten hours** (plus 5 min either side) are transcribed and scanned when they are set for the day.
+  If the hours are later widened, the file is processed again.
+- **Interrupted runs continue** from the last checkpoint (every ~5 min of audio).
+- Audio is read from disk a slice at a time, so a 5-hour file needs almost no memory.
+- Windows is kept awake while processing; a laptop on battery gets a warning.
+- Silence is *not* skipped: on muffled recordings a voice detector misses real speech (tested: ~5% of lines lost).
+
 ## How transcription works
 
 1. The audio is boosted (high-pass + dynamic loudness normalization) into `recordings/processed/`. The original is never modified.
@@ -115,7 +139,7 @@ After changing the filter rules in `transcribe.py`, re-apply them in seconds wit
 | `KIDBERRY_MODEL_HE` | `ivrit-ai/whisper-large-v3-turbo-ct2` | Hebrew windows |
 | `KIDBERRY_MODEL_EN` | `large-v3` | English windows + language detection |
 | `KIDBERRY_ENGLISH_MIN_PROB` | `0.5` | how sure the detector must be to treat a window as English |
-| `KIDBERRY_DEVICE` | `cuda` | `cpu` if no GPU |
+| `KIDBERRY_DEVICE` | auto | `cpu` or `cuda` to override the hardware check |
 | `KIDBERRY_PORT` | `8000` | |
 
 ## Sound detection (crying, screaming, yelling, impacts)
@@ -191,7 +215,8 @@ Flags and the AI review only cover drop-off to pickup. Lines outside are shown f
 
 Kidberry downloads these models from Hugging Face on first use; they are not bundled.
 - Hebrew speech recognition: [ivrit-ai/whisper-large-v3-turbo-ct2](https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ct2) by ivrit.ai (Apache-2.0)
-- Language detection + English: [Whisper large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) by OpenAI, CTranslate2 conversion by Systran (MIT)
+- Language detection + other languages: [Whisper large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) by OpenAI, CTranslate2 conversion by Systran (MIT);
+  on CPU [large-v3-turbo](https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo) (MIT)
 - Sound detection: [AST fine-tuned on AudioSet](https://huggingface.co/MIT/ast-finetuned-audioset-10-10-0.4593) (BSD-3-Clause)
 - Translation: Helsinki-NLP OPUS-MT [es-en](https://huggingface.co/Helsinki-NLP/opus-mt-es-en),
   [en-he](https://huggingface.co/Helsinki-NLP/opus-mt-en-he), [es-he](https://huggingface.co/Helsinki-NLP/opus-mt-es-he),

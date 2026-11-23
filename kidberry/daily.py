@@ -132,13 +132,24 @@ def main() -> None:
         elif have:
             print(f"{day}: {have['dropoff']}-{have['pickup']} (already set)")
         else:
-            print(f"{day}: no hours set - the whole recording will be analyzed, incl. the drive and after pickup. "
+            print(f"{day}: no hours set - the whole recording will be transcribed and analyzed, incl. the drive and after pickup. "
                   f"Set later with: python -m kidberry.analyze --hours {day} HH:MM-HH:MM")
     conn.close()
 
-    say("3/7 Transcribe (GPU)")
+    from . import hardware
+    hw = hardware.profile()
+    print(f"\nHardware: {hw.summary()}")
+    for note in hw.notes + [hardware.battery_warning()]:
+        if note:
+            print(f"  ! {note}")
+    with hardware.keep_awake():
+        steps(days, args)
+
+
+def steps(days, args) -> None:
+    say("3/7 Transcribe")
     run("kidberry.transcribe", str(RAW))
-    say("4/7 Sound detection (GPU)")
+    say("4/7 Sound detection")
     run("kidberry.sounds")
     say("5/7 Translate other languages (local)")
     run("kidberry.translate")

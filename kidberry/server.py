@@ -28,7 +28,8 @@ def recordings():
     with connect() as conn:
         rows = conn.execute(
             """SELECT r.id, r.name, r.path, r.size_bytes, r.file_mtime, r.started_at, r.duration, r.language,
-                      r.status, r.error,
+                      r.status, r.error, r.reviewed_at,
+                      (SELECT COUNT(*) FROM flags f WHERE f.recording_id=r.id AND f.review IS NULL) AS open_count,
                       (SELECT COUNT(*) FROM segments s WHERE s.recording_id=r.id AND s.filtered IS NULL)
                           AS segment_count,
                       (SELECT COUNT(*) FROM flags f WHERE f.recording_id=r.id
@@ -271,7 +272,71 @@ def sounds(rec_id: int):
 
 
 class Review(BaseModel):
-    review: Literal["concerning", "false_alarm"] | None
+    review: Literal["concerning", "ok", "false_alarm"] | None   # ok = listened, real, but fine
+
+
+class BulkReview(BaseModel):
+    flag_ids: list[int]
+    review: Literal["ok"] | None          # "ok" sets flags with no verdict; None undoes those set to "ok"
+
+
+@app.post("/api/flags/review")
+def review_flags(body: BulkReview):
+    """Mark many flags at once (a whole pattern), only those without a verdict; or undo that.
+    Returns the ids that changed, so the page can offer Undo."""
+    ids = body.flag_ids[:5000]
+    if not ids:
+        return {"changed": []}
+    marks = ",".join("?" * len(ids))
+    with connect() as conn:
+        where = "review IS NULL" if body.review else "review='ok'"
+        changed = [r[0] for r in conn.execute(f"SELECT id FROM flags WHERE id IN ({marks}) AND {where}", ids)]
+        if changed:
+            conn.execute(f"UPDATE flags SET review=? WHERE id IN ({','.join('?' * len(changed))})", [body.review, *changed])
+            conn.commit()
+    return {"changed": changed}
+
+
+class Reviewed(BaseModel):
+    reviewed: bool
+
+
+def _mark_reviewed(conn, rec_ids: list[int], reviewed: bool) -> list[int]:
+    """Reviewed: stamp the recordings and make their open flags "ok" (a Concerning verdict stays).
+    Not reviewed: only remove the stamp; the flags keep the verdicts they have (Undo restores them)."""
+    from datetime import datetime
+    if not rec_ids:
+        return []
+    marks = ",".join("?" * len(rec_ids))
+    changed = []
+    if reviewed:
+        changed = [r[0] for r in conn.execute(
+            f"SELECT id FROM flags WHERE recording_id IN ({marks}) AND review IS NULL", rec_ids)]
+        conn.execute(f"UPDATE flags SET review='ok' WHERE recording_id IN ({marks}) AND review IS NULL", rec_ids)
+    conn.execute(f"UPDATE recordings SET reviewed_at=? WHERE id IN ({marks})",
+                 [datetime.now().isoformat(timespec="seconds") if reviewed else None, *rec_ids])
+    conn.commit()
+    return changed
+
+
+@app.post("/api/recordings/{rec_id}/reviewed")
+def recording_reviewed(rec_id: int, body: Reviewed):
+    with connect() as conn:
+        if not conn.execute("SELECT 1 FROM recordings WHERE id=?", (rec_id,)).fetchone():
+            raise HTTPException(404, "recording not found")
+        return {"changed": _mark_reviewed(conn, [rec_id], body.reviewed)}
+
+
+@app.post("/api/days/{day}/reviewed")
+def day_reviewed(day: str, body: Reviewed):
+    if not DAY.match(day):
+        raise HTTPException(400, "day as YYYY-MM-DD")
+    with connect() as conn:
+        ids = [r[0] for r in conn.execute("SELECT id FROM recordings WHERE status='done' AND substr(started_at,1,10)=?",
+                                          (day,))]
+        if not ids:
+            raise HTTPException(404, "no recordings on that day")
+        return {"changed": _mark_reviewed(conn, ids, body.reviewed)}
 
 
 @app.post("/api/flags/{flag_id}/review")

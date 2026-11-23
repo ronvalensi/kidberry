@@ -72,7 +72,16 @@
   #flagsPanel summary { padding: 8px 20px; cursor: pointer; font-weight: 600; position: sticky; top: 0; background: var(--panel); }
   .flag { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 7px 20px; border-top: 1px solid var(--line); align-items: start; }
   .flag:hover { background: var(--accent-soft); }
-  .flag.false_alarm { opacity: .45; }
+  .flag.false_alarm, .flag.ok { opacity: .45; }
+  .flag .acts .ok.on { background: var(--accent); border-color: var(--accent); }
+  .revbtn { margin-top: 6px; }
+  .revbadge { color: var(--ok); font-size: 11px; font-weight: 600; }
+  #toast { position: fixed; bottom: 18px; inset-inline-start: 50%; transform: translateX(-50%); background: var(--text);
+    color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; display: flex; gap: 12px; align-items: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25); z-index: 20; }
+  [dir=rtl] #toast { transform: translateX(50%); }
+  #toast button { background: none; border: none; color: var(--accent-soft); text-decoration: underline; cursor: pointer; font: inherit; }
+
   .flag .ts { color: var(--accent); cursor: pointer; font-variant-numeric: tabular-nums; font-size: 12px; }
   .flag .cat { font-weight: 600; font-size: 13px; }
   .flag .src { color: var(--muted); font-size: 11px; margin-inline-start: 6px; }
@@ -188,7 +197,8 @@
 </aside>
 <main>
   <div class="player">
-    <h2 id="title"></h2>
+    <div style="display:flex;gap:10px;align-items:baseline;justify-content:space-between">
+      <h2 id="title"></h2><button id="recReviewed" hidden></button></div>
     <audio id="audio" controls preload="metadata"></audio>
     <div id="timeline" data-i18n-title="player.timeline"></div>
     <div class="tools">
@@ -317,7 +327,20 @@ const clock = (rec, x) => rec?.started_at
 const startedLabel = r => new Date(r.started_at || r.file_mtime * 1000).toLocaleString(locale());
 const audioUrl = id => `/api/recordings/${id}/audio${$('#original').checked ? '?original=true' : ''}`;
 const sevColor = s => getComputedStyle(document.documentElement).getPropertyValue(s >= 5 ? '--sev5' : s >= 3 ? '--sev3' : '--sev1');
-const activeFlags = () => flags.filter(f => f.review !== 'false_alarm');
+const activeFlags = () => flags.filter(f => f.review !== 'false_alarm' && f.review !== 'ok');
+// A short message with Undo after a bulk action.
+let toastTimer;
+function toast(text, undo) {
+  let el = document.querySelector('#toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.append(el); }
+  el.innerHTML = `<span>${text}</span>` + (undo ? `<button>${t('rev.undo')}</button>` : '');
+  el.hidden = false;
+  if (undo) el.querySelector('button').onclick = async () => { el.hidden = true; await undo(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 10000);
+}
+const undoFine = ids => fetch('/api/flags/review', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ flag_ids: ids, review: null }) });
+
 const statusText = s => t('status.' + s) === 'status.' + s ? s : t('status.' + s);
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
@@ -328,7 +351,8 @@ async function loadRecs() {
       <div class="name">${esc(r.name)}</div>
       <div class="meta">${startedLabel(r)} · ${r.duration ? fmt(r.duration) : '—'}
         · <span class="badge">${esc(statusText(r.status))}</span>
-        ${r.flag_count ? `<span class="sev s${r.max_severity}">${t('rec.flags', [r.flag_count])}</span>` : ''}</div>
+        ${r.open_count ? `<span class="sev s${r.max_severity}">${t('rev.open', [r.open_count])}</span>` : ''}
+        ${r.reviewed_at ? `<span class="revbadge">${t('rev.badge')}</span>` : ''}</div>
     </div>`).join('') : `<div class="empty">${t('rec.none')}</div>`;
   document.querySelectorAll('.rec').forEach(el => el.onclick = () => openRec(+el.dataset.id));
 }
@@ -337,6 +361,7 @@ async function openRec(id, seekTo) {
   current = recs.find(r => r.id === id);
   document.querySelectorAll('.rec').forEach(el => el.classList.toggle('active', +el.dataset.id === id));
   $('#title').textContent = current.name;
+  renderReviewed();
   [segs, flags, soundEvents] = await Promise.all([
     fetch(`/api/recordings/${id}/segments`).then(r => r.json()),
     fetch(`/api/recordings/${id}/flags`).then(r => r.json()),
@@ -347,6 +372,30 @@ async function openRec(id, seekTo) {
   renderAll();
   if (seekTo != null) playFrom(seekTo);
   history.replaceState(null, '', `#r=${id}`);
+}
+
+function renderReviewed() {
+  const b = $('#recReviewed');
+  b.hidden = !current || current.status !== 'done';
+  if (!current) return;
+  b.className = current.reviewed_at ? '' : 'on';
+  b.textContent = current.reviewed_at ? t('rev.done_undo') : t('rev.mark_rec');
+  b.title = current.reviewed_at ? '' : t('rev.mark_title');
+}
+$('#recReviewed').onclick = async () => {
+  const reviewed = !current.reviewed_at, id = current.id;
+  const r = await (await post(`/api/recordings/${id}/reviewed`, { reviewed })).json();
+  await reloadCurrent();
+  if (reviewed) toast(t('rev.marked', [r.changed.length]), async () => {
+    await post(`/api/recordings/${id}/reviewed`, { reviewed: false }); await undoFine(r.changed); await reloadCurrent(); });
+};
+async function reloadCurrent() {
+  await loadRecs();
+  if (!current) return;
+  const keep = current.id;
+  current = recs.find(r => r.id === keep);
+  flags = await (await fetch(`/api/recordings/${keep}/flags`)).json();
+  renderAll(); renderReviewed();
 }
 
 function renderAll() {
@@ -360,11 +409,13 @@ function renderFlags() {
   const panel = $('#flagsPanel');
   panel.hidden = !current;
   if (!current) return;
-  const act = activeFlags();
+  const count = v => flags.filter(f => (f.review || null) === v).length;
   $('#flagsSummary').textContent = flags.length
-    ? t('flags.summary', { n: act.length }) + (flags.length > act.length ? t('flags.false_count', { n: flags.length - act.length }) : '')
+    ? t('flags.summary', { n: count(null) }) + (count('concerning') ? t('rev.n_concerning', { n: count('concerning') }) : '')
+      + (count('ok') ? t('rev.n_fine', { n: count('ok') }) : '') + (count('false_alarm') ? t('flags.false_count', { n: count('false_alarm') }) : '')
     : (current.status === 'done' ? t('flags.none') : t('flags.not_analyzed'));
-  const sorted = [...flags].sort((a, b) => (a.review === 'false_alarm') - (b.review === 'false_alarm') || b.severity - a.severity || a.start - b.start);
+  const rank = f => ({ concerning: 1, ok: 2, false_alarm: 3 }[f.review] || 0);   // open first
+  const sorted = [...flags].sort((a, b) => rank(a) - rank(b) || b.severity - a.severity || a.start - b.start);
   $('#flagsList').innerHTML = sorted.map(f => `
     <div class="flag ${f.review || ''}" data-id="${f.id}">
       <div><span class="ts" data-t="${f.start}">▶ ${fmt(f.start)}</span><br><span class="sev s${f.severity}">${f.severity}</span></div>
@@ -374,7 +425,8 @@ function renderFlags() {
         ${f.source === 'sound' ? saidAround(f) : ''}</div>
       <div class="acts">
         <button class="concerning${f.review === 'concerning' ? ' on' : ''}" data-v="concerning">${t('flags.concerning')}</button>
-        <button class="false_alarm${f.review === 'false_alarm' ? ' on' : ''}" data-v="false_alarm">${t('flags.false_alarm')}</button>
+        <button class="ok${f.review === 'ok' ? ' on' : ''}" data-v="ok" title="${esc(t('rev.fine_title'))}">${t('rev.fine')}</button>
+        <button class="false_alarm${f.review === 'false_alarm' ? ' on' : ''}" data-v="false_alarm" title="${esc(t('rev.false_title'))}">${t('flags.false_alarm')}</button>
       </div>
     </div>`).join('');
   $('#flagsList').querySelectorAll('.flag').forEach(el => {
@@ -406,7 +458,7 @@ async function setReview(id, value) {
   const review = f.review === value ? null : value;   // clicking again clears it
   await post(`/api/flags/${id}/review`, { review });
   f.review = review;
-  renderAll(); loadRecs();
+  renderAll(); await loadRecs(); current = recs.find(r => r.id === current.id) || current; renderReviewed();
 }
 
 function renderTranscript() {

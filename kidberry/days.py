@@ -39,7 +39,7 @@ def day_stats(conn) -> list[dict]:
         day = rec["started_at"][:10]
         d = days[day]
         d["recordings"].append({"id": rec["id"], "name": rec["name"], "started_at": rec["started_at"],
-                                "duration": rec["duration"]})
+                                "duration": rec["duration"], "reviewed_at": rec["reviewed_at"]})
         win = school_window(conn, rec)
         inside = lambda a, b: not win or (b > win[0] and a < win[1])   # noqa: E731
         events = [e for e in detect(conn, rec) if inside(e["start"], e["end"])]
@@ -76,6 +76,8 @@ def day_stats(conn) -> list[dict]:
             "unattended_crying": sum(1 for f in flags if f["category"] == "crying" and f["adult_response"] == "no"),
             "profanity": cats.get("profanity", 0),
             "concerning": sum(1 for f in flags if f["review"] == "concerning"),
+            "open": sum(1 for f in flags if not f["review"]),
+            "reviewed": all(r["reviewed_at"] for r in d["recordings"]),
         })
     return out
 
@@ -87,6 +89,8 @@ def _fmt_min(m: float) -> str:
 def patterns(days: list[dict]) -> dict:
     """Patterns over the last PATTERN_DAYS kindergarten days (days with hours set)."""
     school = [d for d in days if d["hours"]][-PATTERN_DAYS:]
+    # Flags the parent listened to and marked fine are settled: they no longer make a pattern.
+    school = [{**d, "flags": [f for f in d["flags"] if f["review"] != "ok"]} for d in school]
     found = []
 
     # 1. The same kind of flag at a similar time of day on several days.
@@ -138,7 +142,7 @@ def patterns(days: list[dict]) -> dict:
     concerning = [(d["day"], f) for d in days for f in d["flags"] if f["review"] == "concerning"]
     for cday, cf in concerning:
         later = [(d["day"], f) for d in days if d["day"] > cday for f in d["flags"]
-                 if f["category"] == cf["category"] and f["review"] != "concerning"]
+                 if f["category"] == cf["category"] and not f["review"]]
         if later:
             found.append({"kind": "repeat_of_concerning", "category": cf["category"],
                           "days": sorted({cday} | {d for d, _ in later}), "severity": max(cf["severity"], 3),

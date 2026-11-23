@@ -127,7 +127,13 @@ def _v4_processed_range(conn):
     _add_columns(conn, "recordings", {"transcribed_range": "TEXT", "sounds_range": "TEXT"})
 
 
-UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint, _v3_translation_language, _v4_processed_range]
+def _v5_reviewed(conn):
+    # When the parent marked a recording as reviewed (all its open flags became "ok" = fine).
+    _add_columns(conn, "recordings", {"reviewed_at": "TEXT"})
+
+
+UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint, _v3_translation_language, _v4_processed_range,
+            _v5_reviewed]
 SCHEMA_VERSION = len(UPGRADES)
 
 

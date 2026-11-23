@@ -70,6 +70,17 @@
   #tip { position: fixed; pointer-events: none; background: var(--panel); color: var(--text); border: 1px solid var(--line);
          border-radius: 6px; padding: 8px 10px; font-size: 12px; max-width: 340px; box-shadow: 0 4px 14px rgba(0,0,0,.15); display: none; z-index: 10; }
   #tip .q { direction: auto; color: var(--muted); margin-top: 4px; }
+  #toast { position: fixed; bottom: 18px; inset-inline-start: 50%; transform: translateX(-50%); background: var(--text);
+    color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; display: flex; gap: 12px; align-items: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25); z-index: 20; }
+  [dir=rtl] #toast { transform: translateX(50%); }
+  #toast button { background: none; border: none; color: var(--accent-soft); text-decoration: underline; cursor: pointer; font: inherit; }
+  .pattern .acts { margin-top: 4px; }
+  .rbtn { font: inherit; font-size: 12px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    border-radius: 5px; padding: 2px 8px; }
+  .rbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .done { color: var(--s-yelling); font-weight: 600; }
+  .fl.fine { opacity: .3; }
   @media (max-width: 640px) { .axis, .row { grid-template-columns: 64px 1fr; } }
 </style>
 </head>
@@ -98,6 +109,22 @@ const label = c => ['crying', 'profanity', 'yelling', 'impact'].includes(c) ? t(
   : t('cat.' + c) === 'cat.' + c ? c : t('cat.' + c);
 const locale = () => LANG === 'he' ? 'he-IL' : undefined;
 let DATA = null;
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+async function reload() { DATA = await (await fetch('/api/days')).json(); flagById = {};
+  for (const d of DATA.days) for (const f of d.flags) flagById[f.id] = { ...f, day: d.day }; render(); }
+
+// A short message with Undo after a bulk action.
+let toastTimer;
+function toast(text, undo) {
+  let el = document.querySelector('#toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.append(el); }
+  el.innerHTML = `<span>${text}</span>` + (undo ? `<button>${t('rev.undo')}</button>` : '');
+  el.hidden = false;
+  if (undo) el.querySelector('button').onclick = async () => { el.hidden = true; await undo(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 10000);
+}
+const undoFine = ids => fetch('/api/flags/review', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ flag_ids: ids, review: null }) });
 const T0 = 7.5 * 60, T1 = 16.5 * 60;                                   // 07:30 - 16:30
 const pct = m => ((Math.min(Math.max(m, T0), T1) - T0) / (T1 - T0) * 100) + '%';
 const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
@@ -132,11 +159,18 @@ function renderPatterns(data) {
     return;
   }
   box.classList.remove('muted');
-  box.innerHTML = data.patterns.map(p => `<div class="pattern">
+  box.innerHTML = data.patterns.map((p, i) => `<div class="pattern">
       <span class="sev s${p.severity}" style="background:var(--sev${p.severity})">${p.severity}</span>
       <div><div class="title">${esc(patternTitle(p))}</div><div class="muted">${esc(patternDetail(p))} · ${p.days.map(dayName).join(', ')}</div>
         <div class="links">${p.flags.slice(0, 12).map(id => flagById[id]).filter(Boolean)
-          .map(f => `<a href="${listen(f)}">▶ ${dayName(f.day)} ${f.clock}</a>`).join('')}</div></div></div>`).join('');
+          .map(f => `<a href="${listen(f)}">▶ ${dayName(f.day)} ${f.clock}</a>`).join('')}</div>
+        <div class="acts"><button class="rbtn" data-p="${i}" title="${esc(t('rev.pattern_title'))}">${t('rev.pattern')}</button></div></div></div>`).join('');
+  box.querySelectorAll('button[data-p]').forEach(b => b.onclick = async () => {
+    const ids = data.patterns[+b.dataset.p].flags;
+    const r = await (await post('/api/flags/review', { flag_ids: ids, review: 'ok' })).json();
+    await reload();
+    toast(t('rev.marked', [r.changed.length]), async () => { await undoFine(r.changed); await reload(); });
+  });
 }
 
 function renderGrid(days) {
@@ -145,7 +179,7 @@ function renderGrid(days) {
   $('#grid').innerHTML = `<div class="axis"><span></span><div class="ticks">${ticks.join('')}</div></div>` + days.map(d => {
     const band = d.hours ? `<div class="hours" style="left:${pct(toMin(d.hours[0]))};width:calc(${pct(toMin(d.hours[1]))} - ${pct(toMin(d.hours[0]))})"></div>` : '';
     const snd = d.sounds.map(s => `<div class="snd" style="left:${pct(s.minute)};width:${(s.duration / 60) / (T1 - T0) * 100}%;background:var(--s-${s.group})"></div>`).join('');
-    const fl = d.flags.map(f => `<div class="fl" style="left:${pct(f.minute)};height:${6 + f.severity * 3}px;background:var(--sev${f.severity})"></div>
+    const fl = d.flags.map(f => `<div class="fl${f.review === 'ok' ? ' fine' : ''}" style="left:${pct(f.minute)};height:${6 + f.severity * 3}px;background:var(--sev${f.severity})"></div>
       <a class="hit" href="${listen(f)}" data-f="${f.id}" style="left:${pct(f.minute)}"></a>`).join('');
     return `<div class="row"><span class="lbl">${dayName(d.day)}${d.hours ? '' : ` <span class="muted">${t('days.no_hours')}</span>`}</span>
       <div class="track">${band}${lines.join('')}${snd}${fl}</div></div>`;
@@ -167,7 +201,17 @@ function renderTable(days) {
       <td class="num">${d.max_severity ? `<span class="sev s${d.max_severity}" style="background:var(--sev${d.max_severity})">${d.max_severity}</span>` : '–'}</td>
       <td>${bar(d.crying_minutes, maxC)}</td><td class="num">${t('days.min', { n: d.longest_crying_minutes })}</td>
       <td class="num">${d.unattended_crying}</td><td class="num">${d.profanity}</td><td class="num">${d.concerning}</td>
+      <td>${d.reviewed ? `<span class="done">${t('rev.badge')}</span> <button class="rbtn" data-day="${d.day}" data-v="0">${t('rev.undo_day')}</button>`
+        : `<button class="rbtn on" data-day="${d.day}" data-v="1" title="${esc(t('rev.mark_title'))}">${t('rev.mark_day')}</button>`}
+        ${d.open ? `<span class="muted"> ${t('rev.open', [d.open])}</span>` : ''}</td>
       <td>${d.recordings.map(r => `<a href="/#r=${r.id}">${new Date(r.started_at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}</a>`).join('')}</td></tr>`).join('');
+  $('#table').querySelectorAll('button[data-day]').forEach(b => b.onclick = async () => {
+    const reviewed = b.dataset.v === '1', day = b.dataset.day;
+    const r = await (await post(`/api/days/${day}/reviewed`, { reviewed })).json();
+    await reload();
+    if (reviewed) toast(t('rev.marked', [r.changed.length]), async () => {
+      await post(`/api/days/${day}/reviewed`, { reviewed: false }); await undoFine(r.changed); await reload(); });
+  });
 }
 
 function render() {

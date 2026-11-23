@@ -121,6 +121,8 @@ def main() -> None:
     ap.add_argument("--yes", action="store_true", help="start without asking after the estimate")
     ap.add_argument("--progress", action="store_true", help="report progress for the review page")
     args = ap.parse_args()
+    if config.AI_BACKEND == "none":
+        args.no_ai = True                # "No AI" chosen in settings: keyword and sound flags only
 
     from . import estimate, hardware, progress
     conn = connect()

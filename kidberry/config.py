@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -23,19 +24,32 @@ LANGUAGE_MIN_PROB = {"en": ENGLISH_MIN_PROB, "es": SPANISH_MIN_PROB, "ru": RUSSI
 ENHANCE_FILTER = "highpass=f=80,dynaudnorm=f=150:g=15:m=30"
 
 # AI review of transcripts (correction + risk flags). Only transcript TEXT is sent, never audio.
-# The API key is read from the ANTHROPIC_API_KEY environment variable or from a .env file in ROOT.
-AI_MODEL = os.environ.get("KIDBERRY_AI_MODEL", "claude-opus-5-5")
+# Chosen in data/settings.json under "ai" (see ai.py); a KIDBERRY_AI_* environment variable overrides it.
+def _ai_setting(key: str, env: str, default):
+    if os.environ.get(env):
+        return os.environ[env]
+    try:
+        value = json.loads((DATA_DIR / "settings.json").read_text(encoding="utf-8")).get("ai", {}).get(key)
+    except (OSError, ValueError, AttributeError):
+        value = None
+    return default if value in (None, "") else value
+
+
+# claude-code | anthropic | openai | gemini | none  ("subscription"/"api" are the old names of the first two)
+AI_BACKEND = _ai_setting("provider", "KIDBERRY_AI_BACKEND", "claude-code")
+AI_BACKEND = {"subscription": "claude-code", "api": "anthropic"}.get(AI_BACKEND, AI_BACKEND)
+AI_MODEL = _ai_setting("model", "KIDBERRY_AI_MODEL", "")        # empty = the provider's default
 AI_EFFORT = os.environ.get("KIDBERRY_AI_EFFORT", "high")
 AI_BLOCK_SEGMENTS = 60     # transcript lines per request
 AI_CONTEXT_SEGMENTS = 8    # preceding lines included as context only
-# "subscription" = run through the Claude Code CLI on your Claude plan (no API key, no extra bill).
-# "api" = Anthropic API key from .env, pay-as-you-go.
 # "smart" = review only the minutes around sound/keyword flags (~5x fewer tokens); "full" = every line.
-AI_MODE = os.environ.get("KIDBERRY_AI_MODE", "smart")
+AI_MODE = _ai_setting("mode", "KIDBERRY_AI_MODE", "smart")
 AI_NAME_PAD = int(os.environ.get("KIDBERRY_AI_NAME_PAD", "60"))   # smart mode also reviews +/-60 s around the child's name
 AI_SMART_PAD = int(os.environ.get("KIDBERRY_AI_SMART_PAD", "180"))   # seconds before/after each trigger
-AI_BACKEND = os.environ.get("KIDBERRY_AI_BACKEND", "subscription")
-AI_DAILY_TOKEN_CAP = int(os.environ.get("KIDBERRY_AI_DAILY_TOKEN_CAP", "150000"))  # stops cleanly when reached
+AI_DAILY_TOKEN_CAP = int(_ai_setting("daily_token_cap", "KIDBERRY_AI_DAILY_TOKEN_CAP", 150000))  # stops cleanly
+AI_WORKERS = int(_ai_setting("workers", "KIDBERRY_AI_WORKERS", 0)) or None         # requests at a time
+_interval = _ai_setting("interval_s", "KIDBERRY_AI_INTERVAL_S", None)               # seconds between requests
+AI_INTERVAL_S = float(_interval) if _interval is not None else None
 
 # Model downloads: Windows without Developer Mode cannot use the cache's symlinks; that is fine, so no warning.
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")

@@ -8,25 +8,22 @@ Usage:
     python -m kidberry.analyze --keywords-only # only re-apply keywords.py (free, local, seconds)
     python -m kidberry.analyze --usage         # show AI token usage per day
 
-The AI review runs on your Claude subscription through the Claude Code CLI by default
-(KIDBERRY_AI_BACKEND=subscription), or on an API key with KIDBERRY_AI_BACKEND=api.
+The AI provider (your Claude plan, a Claude / OpenAI / Gemini API key, or none) is chosen in
+data/settings.json under "ai": see ai.py, and test it with: python -m kidberry.ai --test
 It stops cleanly at KIDBERRY_AI_DAILY_TOKEN_CAP tokens per day; the next run continues where it stopped.
 Only transcript text is sent - never audio.
 """
 import argparse
 import json
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
-from . import config, keywords, settings
+from . import ai, config, keywords, settings
+from .ai import ProviderError, UsageLimitHit
 from .db import connect
 
-PRICE_IN, PRICE_OUT = 4.0, 20.0   # USD per 1M tokens for claude-opus-5-5 (API list price)
 EST_TOKENS_PER_BLOCK = 9000       # used only to avoid starting batches that would cross the daily cap
 
 def _intro() -> str:
@@ -135,15 +132,6 @@ def fmt(sec: float) -> str:
     return f"{sec // 3600:d}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
 
 
-def load_env() -> None:
-    env = config.ROOT / ".env"
-    if env.exists():
-        for line in env.read_text(encoding="utf-8").splitlines():
-            if "=" in line and not line.lstrip().startswith("#"):
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-
-
 def time_label(started_at: str | None):
     """Formatter for times in prompts: wall-clock when known, so the reviewer's reasons match what the
     parent sees; otherwise the offset into the file."""
@@ -171,100 +159,6 @@ def build_prompt(rec_name: str, context: list, target: list, sounds: list | None
             "context (e.g. a child crying for minutes with no adult responding is a concern) and attach any flag "
             "to the nearest TARGET line ids.\n") if excerpts else ""
     return f"Recording: {rec_name}\n{note}\n{body}"
-
-
-# ---------------------------------------------------------------- AI backends
-# Both return (result_dict_or_None, tokens_in, tokens_out, cost_usd).
-
-class UsageLimitHit(Exception):
-    """The Claude plan's usage limit was reached - stop and resume later."""
-
-
-class SubscriptionReviewer:
-    """Runs each batch through `claude -p` (Claude Code CLI) on the logged-in Claude plan.
-
-    Kept lean: our own short system prompt replaces Claude Code's, no tools, no MCP servers,
-    no CLAUDE.md/plugins, no saved session - so each call carries little beyond the transcript.
-    """
-    name = "subscription"
-    workers = 2
-
-    def __init__(self):
-        self.exe = shutil.which("claude")
-        if not self.exe:
-            sys.exit("Claude Code CLI ('claude') not found on PATH. Install Claude Code and log in, "
-                     "or set KIDBERRY_AI_BACKEND=api.")
-        fd, self.system_file = tempfile.mkstemp(prefix="kidberry_system_", suffix=".txt")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(SYSTEM)
-        self.env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # force subscription login
-
-    def review(self, prompt: str):
-        cmd = [self.exe, "-p", "--output-format", "json", "--system-prompt-file", self.system_file,
-               "--tools", "", "--strict-mcp-config", "--safe-mode", "--no-session-persistence",
-               "--model", config.AI_MODEL, "--effort", config.AI_EFFORT, "--json-schema", json.dumps(SCHEMA)]
-        proc = subprocess.run(cmd, input=prompt, capture_output=True,
-                              text=True, encoding="utf-8", env=self.env, timeout=900, cwd=tempfile.gettempdir())
-        try:
-            data = json.loads(proc.stdout)
-        except json.JSONDecodeError:
-            raise RuntimeError(f"claude CLI failed (exit {proc.returncode}): {(proc.stderr or proc.stdout)[-500:]}")
-        u = data.get("usage") or {}
-        t_in = u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0)
-        t_out = u.get("output_tokens", 0)
-        cost = data.get("total_cost_usd") or 0.0
-        if data.get("is_error"):
-            msg = str(data.get("result") or data.get("api_error_status") or "unknown error")
-            if "limit" in msg.lower():
-                raise UsageLimitHit(msg)
-            raise RuntimeError(msg)
-        if data.get("stop_reason") == "refusal":
-            return None, t_in, t_out, cost
-        result = data.get("structured_output")
-        if result is None:
-            try:
-                result = json.loads(data.get("result") or "")
-            except json.JSONDecodeError:
-                result = None
-        return result, t_in, t_out, cost
-
-
-class APIReviewer:
-    """Pay-as-you-go via ANTHROPIC_API_KEY."""
-    name = "api"
-    workers = 4
-
-    def __init__(self):
-        load_env()
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            sys.exit(f"ANTHROPIC_API_KEY is not set. Put it in {config.ROOT / '.env'} as\n"
-                     "  ANTHROPIC_API_KEY=sk-ant-...\nor use the subscription backend.")
-        import anthropic
-        self.client = anthropic.Anthropic()
-
-    def review(self, prompt: str):
-        resp = self.client.beta.messages.create(
-            model=config.AI_MODEL,
-            max_tokens=16000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            system=SYSTEM,
-            output_config={"effort": config.AI_EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}},
-            messages=[{"role": "user", "content": prompt}],
-        )
-        t_in, t_out = resp.usage.input_tokens, resp.usage.output_tokens
-        cost = (t_in * PRICE_IN + t_out * PRICE_OUT) / 1e6
-        if resp.stop_reason in ("refusal", "max_tokens"):
-            return None, t_in, t_out, cost
-        return json.loads(next(b.text for b in resp.content if b.type == "text")), t_in, t_out, cost
-
-
-def make_reviewer():
-    if config.AI_BACKEND == "api":
-        return APIReviewer()
-    if config.AI_BACKEND == "subscription":
-        return SubscriptionReviewer()
-    sys.exit(f"Unknown KIDBERRY_AI_BACKEND={config.AI_BACKEND!r} (use 'subscription' or 'api')")
 
 
 # ---------------------------------------------------------------- usage tracking
@@ -386,7 +280,7 @@ def ai_review_recording(conn, reviewer, rec, force: bool, budget: dict, full: bo
         try:
             prompt = build_prompt(rec["name"], ctx, tgt, sounds=near, excerpts=not full, started_at=started)
             return tgt, reviewer.review(prompt), None
-        except UsageLimitHit as e:
+        except (UsageLimitHit, ProviderError) as e:
             return tgt, None, e
         except Exception as e:  # noqa: BLE001 - report and continue with other batches
             return tgt, None, RuntimeError(str(e)[:300])
@@ -410,7 +304,9 @@ def ai_review_recording(conn, reviewer, rec, force: bool, budget: dict, full: bo
                 if err:
                     print(f"  [error] {label}: {err}")
                     if isinstance(err, UsageLimitHit):
-                        stop_msg = "Claude plan usage limit reached - run again later, it will resume"
+                        stop_msg = "the AI provider's usage limit was reached - run again later, it will resume"
+                    elif isinstance(err, ProviderError):
+                        stop_msg = f"the AI provider refused: {err}"
                     continue
                 result, t_in, t_out, cost = out
                 log_usage(conn, reviewer.name, rec["id"], t_in, t_out, cost)
@@ -552,9 +448,11 @@ def main() -> None:
               f"Used today: {tokens_today(conn):,} of {config.AI_DAILY_TOKEN_CAP:,}")
         return
 
-    reviewer = None if args.keywords_only else make_reviewer()
+    reviewer = None if args.keywords_only else ai.make_reviewer(SYSTEM, SCHEMA)
+    if not reviewer and not args.keywords_only:
+        print("No AI is chosen in settings: keyword flags only.")
     if reviewer:
-        print(f"AI backend: {reviewer.name}, model {config.AI_MODEL}; used today so far: "
+        print(f"AI: {ai.PROVIDERS[reviewer.name]['label']}, model {reviewer.model}; used today so far: "
               f"{tokens_today(conn):,} of {config.AI_DAILY_TOKEN_CAP:,} tokens")
     budget = {"blocks": args.blocks if args.blocks is not None else 10**9}
     before = tokens_today(conn)

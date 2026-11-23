@@ -136,6 +136,11 @@
   .dlgacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   .dlgacts button { padding: 6px 14px; font-size: 13px; }
   .recstate { font-size: 12px; margin-bottom: 6px; }
+  .linkbtn { background: none; border: none; padding: 6px 0 0; color: var(--muted); font-size: 11px; cursor: pointer;
+    text-decoration: underline; }
+  #supportDlg { width: min(640px, calc(100vw - 32px)); }
+  #supportText { max-height: 50vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 8px 10px; font-size: 11px; white-space: pre-wrap; }
   .recstate.ok { color: var(--ok); } .recstate.no { color: var(--sev3); }
 </style>
 </head>
@@ -145,6 +150,7 @@
   <div class="importbar">
     <button class="bigbtn" id="importBtn">⬇ Import &amp; process</button>
     <div id="job" hidden></div>
+    <button class="linkbtn" id="supportBtn" title="A file with technical facts (no audio, transcripts or names) to send when asking for help">Having a problem? Make a support report</button>
   </div>
   <a href="/days" style="display:block;margin:-4px 0 10px;color:var(--accent);text-decoration:none">📅 Days overview &amp; patterns →</a>
   <div class="search-all"><input id="qAll" type="search" placeholder="Search all recordings…" dir="auto">
@@ -180,12 +186,20 @@
   <div class="note">Only the kindergarten hours (plus 5 minutes either side) are processed.</div>
   <div class="check"><input type="checkbox" id="jAi" checked><label for="jAi">AI review (corrects misheard words and
     flags concerning moments)</label></div>
-  <div class="credit" id="creditNote">This uses your AI account's credits or plan limits. Only transcript text is sent,
-    never audio.</div>
+  <div class="credit" id="creditNote"></div>
   <div class="check"><input type="checkbox" id="jFull"><label for="jFull">Review every line, not just around flags
     <span class="note">(about 5x the tokens)</span></label></div>
   <div id="estBox">Estimating…</div>
   <div class="dlgacts"><button id="jCancel">Cancel</button><button class="on" id="jStart">Start</button></div>
+</dialog>
+<dialog id="supportDlg">
+  <h3>Support report</h3>
+  <div class="note">Only technical facts: version, hardware, speeds, settings choices and where errors happened.
+    No audio, transcripts, names, flags, recording dates or file paths. Read it, and send it only if you are happy to.
+    Kidberry never sends anything by itself.</div>
+  <pre id="supportText"></pre>
+  <div class="dlgacts"><button id="supportCopy">Copy</button><a id="supportSave" download><button>Save file</button></a>
+    <button class="on" id="supportClose">Close</button></div>
 </dialog>
 <script>
 const $ = s => document.querySelector(s);
@@ -487,7 +501,7 @@ function jobParams() {
 }
 async function refreshEstimate() {
   const p = jobParams();
-  $('#creditNote').hidden = !p.ai; $('#jFull').disabled = !p.ai;
+  $('#creditNote').hidden = !p.ai && !$('#jAi').disabled; $('#jFull').disabled = !p.ai;
   if (!p.day || !p.dropoff || !p.pickup || p.dropoff >= p.pickup) {
     $('#estBox').textContent = 'Set the day, and a drop-off time before the pickup time.'; $('#jStart').disabled = true; return;
   }
@@ -513,12 +527,26 @@ $('#importBtn').onclick = async () => {
     ? `Recorder connected: ${s.recorder.new.length} new recording(s)${s.recorder.days.length ? ' from ' + s.recorder.days.join(', ') : ''}.`
     : 'Recorder connected: no new recordings on it.'; }
   $('#jDay').value = s.day; $('#jFrom').value = s.dropoff; $('#jTo').value = s.pickup;
+  const noAi = s.ai.provider === 'none', noKey = s.ai.has_key === false;
+  $('#jAi').disabled = noAi || noKey;
+  if (noAi || noKey) $('#jAi').checked = false;
+  $('#creditNote').innerHTML = noAi ? 'AI is off in settings: keyword and sound flags only. Nothing leaves this PC.'
+    : noKey ? `<b>${esc(s.ai.label)}</b> is chosen, but no API key is set yet (data/secrets.json).`
+    : `<b>${esc(s.ai.label)}</b>. ${esc(s.ai.cost)} Only transcript text is sent, never audio.<br>`
+      + `<span class="note">Privacy: ${esc(s.ai.privacy)}</span>`;
   $('#importDlg').showModal();
   refreshEstimate();
 };
 ['#jDay', '#jFrom', '#jTo', '#jAi', '#jFull'].forEach(id => $(id).addEventListener('change', () => {
   clearTimeout(estTimer); estTimer = setTimeout(refreshEstimate, 250); }));
 $('#jCancel').onclick = () => $('#importDlg').close();
+$('#supportBtn').onclick = async () => {
+  $('#supportText').textContent = 'Making the report…'; $('#supportDlg').showModal();
+  const r = await (await fetch('/api/support', { method: 'POST' })).json();
+  $('#supportText').textContent = r.text; $('#supportSave').href = '/api/support/' + encodeURIComponent(r.name);
+};
+$('#supportCopy').onclick = () => navigator.clipboard.writeText($('#supportText').textContent);
+$('#supportClose').onclick = () => $('#supportDlg').close();
 $('#jStart').onclick = () => { const p = jobParams(); $('#importDlg').close(); startJob(p); };
 loadJob();
 </script>

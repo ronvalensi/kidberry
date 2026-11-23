@@ -10,7 +10,7 @@ transcript **text** sent to the AI provider you choose.
 > conclusion. Recording conversations you are not part of may be illegal where you live (in Israel, see the
 > Secret Monitoring Law); you are responsible for checking the law and for how you use the recordings.
 
-> Work in progress: installer, choice of AI provider and a Hebrew interface are being built.
+> Work in progress: an installer, a setup wizard and a Hebrew interface are being built.
 > Today it needs Windows, Python 3.11 and ffmpeg. An NVIDIA GPU makes it much faster but is not required.
 
 ## Setup (once)
@@ -149,6 +149,7 @@ After changing the filter rules in `transcribe.py`, re-apply them in seconds wit
 | `KIDBERRY_MODEL_EN` | `large-v3` | English windows + language detection |
 | `KIDBERRY_ENGLISH_MIN_PROB` | `0.5` | how sure the detector must be to treat a window as English |
 | `KIDBERRY_DEVICE` | auto | `cpu` or `cuda` to override the hardware check |
+| `KIDBERRY_AI_BACKEND`, `KIDBERRY_AI_MODEL`, `KIDBERRY_AI_DAILY_TOKEN_CAP` | from settings | override the `"ai"` settings |
 | `KIDBERRY_PORT` | `8000` | |
 
 ## Sound detection (crying, screaming, yelling, impacts)
@@ -193,14 +194,59 @@ Flags and the AI review only cover drop-off to pickup. Lines outside are shown f
 .\.venv\Scripts\python -m kidberry.analyze --keywords-only  # only keyword flags (free, local)
 ```
 
-- **AI review** (Claude, `claude-opus-5-5`): sends transcript *text only* (never audio). For every line it writes a best-guess
-  correction of what was actually said, and flags concerning moments with category, severity 1–5, and a reason.
-- **Runs on your Claude subscription** by default, through the Claude Code CLI (`claude` must be installed and logged in).
-  Calls are kept lean: own short instructions, no tools, no MCP, no saved session.
-  Measured: ~7,300 tokens per batch of 60 lines, so ~100,000 tokens for a full day.
-- **Daily cap**: stops cleanly at `KIDBERRY_AI_DAILY_TOKEN_CAP` (default 150,000) tokens per day, or when the plan's usage
+- **AI review**: sends transcript *text only* (never audio). For every line it writes a best-guess correction of what
+  was actually said, and flags concerning moments with category, severity 1–5, and a reason.
+- **Daily cap**: stops cleanly at `daily_token_cap` (default 150,000) tokens per day, or when the provider's usage
   limit is hit. Each batch is saved as soon as it returns, so the next run continues from where it stopped.
-- Optional pay-as-you-go instead: `KIDBERRY_AI_BACKEND=api` plus `ANTHROPIC_API_KEY=sk-ant-...` in `.env` (git-ignored).
+  A smart-mode day measured ~15,000 tokens per kindergarten hour.
+- **Keyword flags**: Hebrew/English/Spanish/Russian warning phrases in `kidberry/keywords.py`, checked against both the
+  raw and corrected text.
+- In the UI, mark each flag **Concerning** or **False alarm**. Verdicts are kept when flags are regenerated, and will be
+  used to tune the analysis.
+
+### Choosing the AI
+
+The AI review is optional. Choose a provider in `data/settings.json`:
+
+```json
+"ai": {"provider": "claude-code", "model": "", "daily_token_cap": 150000, "mode": "smart"}
+```
+
+| `provider` | What you need | Cost | Privacy |
+|---|---|---|---|
+| `claude-code` (default) | [Claude Code](https://claude.com/claude-code) logged in to a Claude Pro/Max plan | your plan's usage limits, no extra charge | consumer terms: turn off "help improve Claude" in claude.ai privacy settings |
+| `anthropic` | an API key from console.anthropic.com | pay per token, roughly $1 a day | API data not used for training by default |
+| `openai` | an API key from platform.openai.com (a ChatGPT plan does not include it) | pay per token | API data not used for training by default, kept up to 30 days |
+| `gemini` | an API key from aistudio.google.com | **free tier**, or pay per token | **on the free tier Google may use the text to improve its products and people may read it** |
+| `none` | nothing | free | nothing leaves the PC; keyword and sound flags only |
+
+Check the providers' current terms yourself; they change. API keys go in `data/secrets.json` (never uploaded):
+`{"anthropic": "...", "openai": "...", "gemini": "..."}`, or in `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
+`GEMINI_API_KEY`. `model` empty picks a default (Claude: `claude-opus-5-5`; OpenAI and Gemini: the newest main model
+your key can use). Rate limits are handled: busy replies are retried after the wait the provider asks for, and a daily
+quota or empty credit stops the run cleanly so the next run continues. The Gemini free tier is paced to one request
+every 7 seconds (`"interval_s"` to change it).
+
+Test your choice before a real day: one small made-up batch (a few thousand tokens) that checks the AI corrects a
+misheard name, leaves the look-alike everyday word alone, flags a threat and leaves ordinary lines alone:
+
+```powershell
+.\.venv\Scripts\python -m kidberry.ai --list    # the providers, and whether a key was found
+.\.venv\Scripts\python -m kidberry.ai --test
+```
+
+The Claude calls are kept lean: Kidberry's own short instructions, no tools, no MCP, no saved session.
+
+## Privacy and support
+
+Kidberry never sends anything about you or its use anywhere: no telemetry, no crash reports, no update pings. The only
+thing that ever leaves the PC is transcript text for the AI review, and only if you turn it on.
+
+If something goes wrong, **Having a problem? Make a support report** (on the page, under Import, or
+`python -m kidberry.support`) makes a text file with technical facts only: version, Windows, hardware, measured
+speeds, the languages and AI provider chosen, and where recent runs failed (error type and code line, never the
+message). It has no audio, transcripts, names, flags, recording dates, file paths, settings or keys. You read it and
+send it yourself, if you want to.
 - **Keyword flags**: Hebrew/English warning phrases in `kidberry/keywords.py`, checked against both the raw and corrected text.
 - In the UI, mark each flag **Concerning** or **False alarm**. Verdicts are kept when flags are regenerated, and will be
   used to tune the analysis.
@@ -217,6 +263,8 @@ Flags and the AI review only cover drop-off to pickup. Lines outside are shown f
 - [ ] Weekly AI summary of the week's flags
 - [x] Kindergarten languages in settings (Hebrew, English, Spanish, Russian); only the models needed are loaded
 - [ ] Choose the languages in the setup wizard
+- [x] Choice of AI: your Claude plan, Claude / OpenAI / Gemini API key (incl. Gemini's free tier), or no AI; `--test`
+- [x] Support report you read and send yourself (no telemetry)
 - [ ] Arabic (Hebrew + Arabic kindergartens): waiting for sample recordings to choose and test a dialect model
 - [ ] Later: speaker separation (adult vs child), real clock-time per file
 

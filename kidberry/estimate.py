@@ -18,7 +18,7 @@ from .db import PROCESS_MARGIN_S, connect, covers
 RAW = config.ROOT / "recordings" / "raw"
 DEFAULT_TOKENS_PER_HOUR = 15000    # smart AI review, measured on real days (~15-16k per kindergarten hour)
 FULL_MODE_FACTOR = 5               # --full reviews every line: ~5x the tokens
-SECONDS_PER_AI_BATCH = 60          # one batch of ~60 lines takes about a minute; 2 run at a time
+SECONDS_PER_AI_BATCH = 60          # one batch of ~60 lines takes about a minute; some run at the same time
 COPY_MB_PER_S = 40                 # USB recorders are slow
 
 
@@ -52,8 +52,11 @@ class Estimate:
                    + ("  (finishes around " + (datetime.now() + timedelta(minutes=total)).strftime("%H:%M") + ")"
                       if total >= 1 else ""))
         if ai and self.ai_tokens:
+            from . import ai as ai_
             share = f" = about {self.ai_tokens / cap:.0%} of your daily cap of {cap:,}" if cap else ""
-            out.append(f"  AI tokens               ~{self.ai_tokens:,}{share}. This uses your AI account's credits/limits.")
+            out.append(f"  AI tokens               ~{self.ai_tokens:,}{share}")
+            p = ai_.PROVIDERS[ai_.provider()]
+            out.append(f"  AI: {p['label']}. {p['cost']}")
         return out
 
 
@@ -138,8 +141,12 @@ def estimate(conn, source: Path | None = None, full: bool = False, ai: bool = Tr
     if ai:
         est.ai_hours = sum(f["work_s"] for f in est.files) / 3600
         est.ai_tokens = int(round(est.ai_hours * tokens_per_hour(conn) * (FULL_MODE_FACTOR if full else 1), -3))
+        from . import ai as ai_
+        p = ai_.PROVIDERS[ai_.provider()]
+        workers = config.AI_WORKERS or p["workers"] or 1
+        interval = config.AI_INTERVAL_S if config.AI_INTERVAL_S is not None else p["interval_s"]
         batches = est.ai_tokens / 10000
-        est.minutes["ai"] = batches * SECONDS_PER_AI_BATCH / 2 / 60
+        est.minutes["ai"] = batches * max(SECONDS_PER_AI_BATCH / workers, interval) / 60
     return est
 
 

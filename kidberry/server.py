@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import config
+from . import ai
 from .analyze import school_window
 from .db import connect
 
@@ -223,7 +224,29 @@ def job_setup():
                                  "ORDER BY day DESC LIMIT 1", (wd,)).fetchone()
                     or conn.execute("SELECT dropoff, pickup FROM school_hours ORDER BY day DESC LIMIT 1").fetchone())
     return {"recorder": rec, "day": day, "dropoff": have["dropoff"] if have else "08:00",
-            "pickup": have["pickup"] if have else "16:00", "cap": config.AI_DAILY_TOKEN_CAP}
+            "pickup": have["pickup"] if have else "16:00", "cap": config.AI_DAILY_TOKEN_CAP, "ai": ai.info()}
+
+
+@app.post("/api/support")
+def support_report():
+    """Make a support report (see support.py): shown to the parent, who decides whether to send it."""
+    from . import support
+    name, text = support.report()
+    return {"name": name, "text": text}
+
+
+@app.get("/api/support/{name}")
+def support_file(name: str):
+    from . import support
+    if not re.fullmatch(r"kidberry-support-\d{8}-\d{4}\.txt", name) or not (support.SUPPORT_DIR / name).is_file():
+        raise HTTPException(404)
+    return FileResponse(support.SUPPORT_DIR / name, media_type="text/plain; charset=utf-8", filename=name)
+
+
+@app.get("/api/ai")
+def ai_providers():
+    """The AI providers with their cost and privacy notes, and which one is chosen. Never the keys."""
+    return {"current": ai.provider(), "providers": [ai.info(k) for k in ai.PROVIDERS]}
 
 
 @app.get("/api/job/estimate")

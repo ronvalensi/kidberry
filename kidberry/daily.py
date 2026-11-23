@@ -101,6 +101,7 @@ def main() -> None:
     ap.add_argument("--clear-recorder", action="store_true")
     ap.add_argument("--no-ai", action="store_true")
     ap.add_argument("--full", action="store_true")
+    ap.add_argument("--yes", action="store_true", help="start without asking after the estimate")
     args = ap.parse_args()
 
     new = []
@@ -134,14 +135,27 @@ def main() -> None:
         else:
             print(f"{day}: no hours set - the whole recording will be transcribed and analyzed, incl. the drive and after pickup. "
                   f"Set later with: python -m kidberry.analyze --hours {day} HH:MM-HH:MM")
-    conn.close()
-
-    from . import hardware
+    from . import estimate, hardware
     hw = hardware.profile()
-    print(f"\nHardware: {hw.summary()}")
+    say("Estimate")
+    print(f"Hardware: {hw.summary()}")
     for note in hw.notes + [hardware.battery_warning()]:
         if note:
             print(f"  ! {note}")
+    est = estimate.estimate(conn, None, full=args.full, ai=not args.no_ai)
+    if est.files:
+        print("\n".join(est.lines(ai=not args.no_ai, cap=config.AI_DAILY_TOKEN_CAP)))
+        if not args.no_ai and est.ai_tokens:
+            from .analyze import tokens_today
+            left = config.AI_DAILY_TOKEN_CAP - tokens_today(conn)
+            if est.ai_tokens > left:
+                print(f"  ! Only {max(left, 0):,} tokens are left under today's cap: the AI review stops there and "
+                      "continues on the next run.")
+    else:
+        print("Nothing new to transcribe; continuing with the remaining steps.")
+    conn.close()
+    if est.files and not args.yes and ask("Start? [Y/n] ").lower() in ("n", "no"):
+        sys.exit("Not started. Run again when you are ready.")
     with hardware.keep_awake():
         steps(days, args)
 

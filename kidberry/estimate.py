@@ -15,7 +15,7 @@ from pathlib import Path
 from . import config, hardware, settings
 from .db import PROCESS_MARGIN_S, connect, covers
 
-RAW = config.ROOT / "recordings" / "raw"
+RAW = config.RAW_DIR
 DEFAULT_TOKENS_PER_HOUR = 15000    # smart AI review, measured on real days (~15-16k per kindergarten hour)
 FULL_MODE_FACTOR = 5               # --full reviews every line: ~5x the tokens
 SECONDS_PER_AI_BATCH = 60          # one batch of ~60 lines takes about a minute; some run at the same time

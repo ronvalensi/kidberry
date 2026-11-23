@@ -10,10 +10,24 @@ transcript **text** sent to the AI provider you choose.
 > conclusion. Recording conversations you are not part of may be illegal where you live (in Israel, see the
 > Secret Monitoring Law); you are responsible for checking the law and for how you use the recordings.
 
-> Work in progress: an installer, a setup wizard and a Hebrew interface are being built.
-> Today it needs Windows, Python 3.11 and ffmpeg. An NVIDIA GPU makes it much faster but is not required.
+> Windows 10 or 11, 64-bit. An NVIDIA GPU makes it much faster but is not required.
 
-## Setup (once)
+## Install
+
+1. Download [`Install-Kidberry.cmd`](https://github.com/ronvalensi/kidberry/raw/main/install/Install-Kidberry.cmd)
+   and double-click it. No admin rights are needed.
+2. Windows may warn about a file from the internet: choose **Run** (or **More info → Run anyway**). The
+   installer is a short script you can read first: [`install/install.ps1`](install/install.ps1).
+3. It checks the PC (GPU or not; free space: about 10 GB with a GPU, 6 GB without), installs a private Python,
+   ffmpeg and the packages into `%LOCALAPPDATA%\Kidberry`, adds a **Kidberry** icon to the desktop and the Start
+   menu, and opens it. The setup wizard takes it from there. The speech models (1.5-3 GB) download the first
+   time a day is processed.
+
+Your settings, transcripts and recordings live in `%LOCALAPPDATA%\Kidberry\data` and `...\recordings`, apart from
+the app, so reinstalling or updating never touches them. To remove Kidberry, run
+`%LOCALAPPDATA%\Kidberry\Uninstall Kidberry.cmd` (it asks whether to keep your data).
+
+## Setup for development
 
 ```powershell
 py -3.11 -m venv .venv

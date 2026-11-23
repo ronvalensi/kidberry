@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kidberry</title>
+<link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="/static/kidberry.css">
 <style>
   body { display: grid; grid-template-columns: 320px 1fr; height: 100vh; overflow: hidden; }
@@ -194,6 +195,7 @@
     <a class="brand" id="homeLink"><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 7c-1-3-4-4-6-3 2 1 3 2 4 4" fill="none" stroke="#3f9b6a" stroke-width="2" stroke-linecap="round"/><path d="M17 8c2-2 5-2 7-1-2 1-4 2-6 2" fill="#3f9b6a"/><circle cx="11" cy="16" r="6" fill="#7b5ad6"/><circle cx="21" cy="16" r="6" fill="#6a4bc4"/><circle cx="16" cy="23" r="6.5" fill="#8a6ee0"/><circle cx="9.5" cy="14.5" r="1.6" fill="#fff" opacity=".45"/><circle cx="14.5" cy="21" r="1.8" fill="#fff" opacity=".45"/></svg><b>Kidberry</b></a>
     <button class="ghost iconbtn" id="langBtn" data-i18n="app.switch" data-i18n-title="app.switch_title"></button>
     <button class="ghost iconbtn" id="setBtn" data-i18n-title="set.title">⚙</button>
+    <button class="ghost iconbtn" id="quitBtn" data-i18n-title="app.quit_title" hidden>⏻</button>
   </div>
   <div class="importbar">
     <button class="bigbtn" id="importBtn" data-i18n="imp.button"></button>
@@ -956,6 +958,12 @@ function switchLang(lang, save = true) {
   loadRecs().then(() => { if (!current) loadHome(); }); if (current) { renderAll(); renderTitle(); renderReviewed(); } loadJob();
 }
 $('#langBtn').onclick = () => switchLang(LANG === 'he' ? 'en' : 'he');
+$('#quitBtn').onclick = async () => {
+  if (!confirm(t('app.quit_confirm'))) return;
+  await fetch('/api/quit', { method: 'POST' });
+  clearTimeout(jobTimer); audio.pause();
+  document.body.innerHTML = `<div class="welcome" style="grid-column:1/-1">${t('app.closed')}</div>`;
+};
 
 async function refreshAfterSettings() {
   await loadName(); setLang(LANG); nameLabels(); await loadRecs(); if (current) renderAll(); else loadHome();
@@ -965,6 +973,7 @@ async function refreshAfterSettings() {
 (async () => {
   const n = await loadName();
   setLang(n.ui_language); nameLabels();
+  $('#quitBtn').hidden = !n.can_quit;
   await loadRecs();
   const m = location.hash.match(/r=(\d+)/), tm = location.hash.match(/t=(\d+)/);   // #r=3&t=8804 from the Days page
   if (m && recs.some(r => r.id === +m[1])) openRec(+m[1], tm ? +tm[1] : undefined); else loadHome();

@@ -29,7 +29,7 @@ from . import config, settings
 from .db import connect
 from .transcribe import started_at_from_name
 
-RAW = config.ROOT / "recordings" / "raw"
+RAW = config.RAW_DIR
 
 
 def say(msg: str) -> None:

@@ -3,9 +3,19 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("KIDBERRY_DATA_DIR") or ROOT / "data")   # override: a separate profile, or tests
+# Installed by the installer: <install>/app is this code, and data, recordings and tools sit next to it, so an
+# update can replace app/ without touching anything of the family's. A git checkout keeps them inside ROOT.
+INSTALL_DIR = ROOT.parent if (ROOT.parent / "install.json").exists() else None
+_HOME = INSTALL_DIR or ROOT
+DATA_DIR = Path(os.environ.get("KIDBERRY_DATA_DIR") or _HOME / "data")   # override: a separate profile, or tests
 DB_PATH = DATA_DIR / "kidberry.db"
-PROCESSED_DIR = ROOT / "recordings" / "processed"   # volume-boosted copies used for transcription + playback
+RECORDINGS_DIR = Path(os.environ.get("KIDBERRY_RECORDINGS_DIR") or _HOME / "recordings")
+RAW_DIR = RECORDINGS_DIR / "raw"                # copies of the recorder's files, untouched
+PROCESSED_DIR = RECORDINGS_DIR / "processed"    # volume-boosted copies used for transcription + playback
+if INSTALL_DIR and (INSTALL_DIR / "tools" / "ffmpeg").is_dir():   # the installer's own ffmpeg
+    _ff = str(INSTALL_DIR / "tools" / "ffmpeg")
+    if _ff not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _ff + os.pathsep + os.environ.get("PATH", "")
 
 # Two models: a Hebrew-tuned one, and a general one for the other languages + language detection.
 # Only the ones the kindergarten's languages need are loaded (settings.json "languages"): Hebrew-only
@@ -55,4 +65,4 @@ AI_INTERVAL_S = float(_interval) if _interval is not None else None
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 HOST = "127.0.0.1"
-PORT = int(os.environ.get("KIDBERRY_PORT", "8000"))
+PORT = int(os.environ.get("KIDBERRY_PORT") or (8770 if INSTALL_DIR else 8000))   # installed: not the developer's 8000

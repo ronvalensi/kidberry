@@ -7,7 +7,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import config
+from . import __version__, config
 from . import ai
 from .analyze import school_window
 from .db import connect
@@ -64,7 +64,25 @@ def segments(rec_id: int):
 def child_name():
     from . import names, settings
     return {"name": names.NAME, "name_en": names.NAME_EN, "pattern": names.highlight_pattern(),
-            "ui_language": settings.ui_language(), "setup_needed": settings.setup_needed()}
+            "ui_language": settings.ui_language(), "setup_needed": settings.setup_needed(),
+            "can_quit": bool(config.INSTALL_DIR), "version": __version__}
+
+
+@app.post("/api/quit")
+def quit_app():
+    """Stop Kidberry (the installed app runs hidden, so the page is where it is closed). A processing run
+    that is going on is a separate process and keeps going."""
+    import os
+    import threading
+    if not config.INSTALL_DIR:
+        raise HTTPException(403, "only the installed app quits from the page")
+    threading.Timer(0.5, lambda: os._exit(0)).start()
+    return {"ok": True}
+
+
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(STATIC / "kidberry.ico")
 
 
 # ---------------------------------------------------------------- settings (the wizard and the settings page)

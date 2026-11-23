@@ -3,6 +3,8 @@
 const I18N = {
   en: {
     'app.switch': 'עברית', 'app.switch_title': 'החלפה לעברית',
+    'app.quit_title': 'Quit Kidberry', 'app.quit_confirm': 'Quit Kidberry? A day being processed keeps going in the background.',
+    'app.closed': '<h2>Kidberry is closed</h2><p>Open it again from the Kidberry icon on your desktop.</p>',
     'nav.days': '📅 Days overview & patterns →', 'nav.back': '← Recordings', 'nav.settings': '⚙ Settings',
     'nav.home': '🏠 Home', 'nav.days_short': '📅 Days & patterns',
     'home.morning': 'Good morning 👋', 'home.afternoon': 'Good afternoon 👋', 'home.evening': 'Good evening 👋',
@@ -150,6 +152,8 @@ const I18N = {
   },
   he: {
     'app.switch': 'English', 'app.switch_title': 'Switch to English',
+    'app.quit_title': 'יציאה מ-Kidberry', 'app.quit_confirm': 'לצאת מ-Kidberry? יום שנמצא בעיבוד ימשיך ברקע.',
+    'app.closed': '<h2>Kidberry סגור</h2><p>אפשר לפתוח אותו שוב מהסמל של Kidberry בשולחן העבודה.</p>',
     'nav.days': '📅 סקירת ימים ודפוסים ←', 'nav.back': '→ הקלטות', 'nav.settings': '⚙ הגדרות',
     'nav.home': '🏠 בית', 'nav.days_short': '📅 ימים ודפוסים',
     'home.morning': 'בוקר טוב 👋', 'home.afternoon': 'צהריים טובים 👋', 'home.evening': 'ערב טוב 👋',

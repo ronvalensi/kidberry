@@ -7,7 +7,7 @@ Steps:
      (and, if you agree / --clear-recorder, delete the verified ones from the recorder)
   2. set the kindergarten hours for the day (asked if not given)
   3. transcribe (GPU, free)            4. detect sounds (GPU, free)
-  5. translate Spanish (GPU, free)     6. keyword flags + smart AI review (your Claude plan, capped)
+  5. translate other languages (free)  6. keyword flags + smart AI review (your Claude plan, capped)
   7. print the day's summary and any patterns across days
 
 Options:
@@ -140,7 +140,7 @@ def main() -> None:
     run("kidberry.transcribe", str(RAW))
     say("4/7 Sound detection (GPU)")
     run("kidberry.sounds")
-    say("5/7 Translate Spanish (GPU)")
+    say("5/7 Translate other languages (local)")
     run("kidberry.translate")
 
     for day in days:

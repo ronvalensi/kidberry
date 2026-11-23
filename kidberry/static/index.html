@@ -90,7 +90,7 @@
   .seg .ts { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 12px; padding-top: 2px; }
   .seg .clock { display: block; color: var(--muted); font-size: 11px; }
   .seg .heard { display: block; color: var(--muted); font-size: 12px; }
-  .en { display: block; color: var(--accent); font-size: 12px; font-style: italic; text-align: left; }
+  .en { display: block; color: var(--accent); font-size: 12px; font-style: italic; text-align: start; }
   .seg .tag { color: var(--muted); font-size: 10px; text-transform: uppercase; margin-inline-start: 6px; }
   .seg .why { color: var(--sev5); font-size: 10px; margin-inline-start: 6px; }
   .seg mark { background: var(--hit); color: inherit; }
@@ -149,6 +149,8 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const hl = (text, q) => { const t = esc(text); if (!q) return t;
   return t.replace(new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => `<mark>${m}</mark>`); };
 const lowConf = s => s.no_speech_prob > 0.6 || s.avg_logprob < -1.0;
+const trLabel = s => (s.translation_lang || 'en').toUpperCase();
+const trDir = s => s.translation_lang === 'he' ? 'rtl' : 'ltr';
 const clock = (rec, t) => rec?.started_at
   ? new Date(new Date(rec.started_at).getTime() + t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   : '';
@@ -232,7 +234,7 @@ function saidAround(f) {
     const text = useCorr && s.corrected ? s.corrected : s.text;
     return `<div class="said-line${during ? ' during' : ''}" data-t="${s.start}">
       <span class="ts">${clock(current, s.start) || fmt(s.start)}</span>
-      <span><span dir="auto">${esc(text)}</span>${s.translation ? `<span class="en" dir="ltr">EN: ${esc(s.translation)}</span>` : ''}</span><span class="tag">${s.language || ''}${during ? ' · during' : s.start < f.start ? ' · before' : ' · after'}</span></div>`;
+      <span><span dir="auto">${esc(text)}</span>${s.translation ? `<span class="en" dir="${trDir(s)}">${trLabel(s)}: ${esc(s.translation)}</span>` : ''}</span><span class="tag">${s.language || ''}${during ? ' · during' : s.start < f.start ? ' · before' : ' · after'}</span></div>`;
   }).join('')}</details>`;
 }
 
@@ -265,7 +267,7 @@ function renderTranscript() {
       <span><span class="main" dir="auto">${hlName(hl(shown, q))}</span><span class="tag">${s.language || ''}</span>${conf}${nameBadge(s.mention)}
         ${s.filtered ? `<span class="why">${esc(s.filtered)}</span>` : ''}
         ${outside ? `<span class="tag">outside kindergarten hours</span>` : ''}
-        ${s.translation ? `<span class="en" dir="ltr">EN: ${hl(s.translation, q)}</span>` : ''}
+        ${s.translation ? `<span class="en" dir="${trDir(s)}">${trLabel(s)}: ${hl(s.translation, q)}</span>` : ''}
         ${corr ? `<span class="heard" dir="auto">heard: ${hlName(hl(s.text, q))}</span>` : ''}</span></div>`;
   }).join('') || '<div class="empty">No matching lines.</div>';
   segEls = [];
@@ -359,7 +361,7 @@ $('#nameBtn').onclick = async () => {
       const day = (h.started_at || '').slice(0, 10), head = day !== lastDay ? `<div class="hit day">${day}</div>` : '';
       lastDay = day;
       const t = h.started_at ? new Date(new Date(h.started_at).getTime() + h.start * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : fmt(h.start);
-      return head + `<div class="hit" data-i="${i}"><div class="meta">${t}${nameBadge(h.mention)}</div><div dir="auto">${hlName(esc(h.shown))}</div>${h.translation ? `<div class="en" dir="ltr">EN: ${esc(h.translation)}</div>` : ''}</div>`;
+      return head + `<div class="hit" data-i="${i}"><div class="meta">${t}${nameBadge(h.mention)}</div><div dir="auto">${hlName(esc(h.shown))}</div>${h.translation ? `<div class="en" dir="${trDir(h)}">${trLabel(h)}: ${esc(h.translation)}</div>` : ''}</div>`;
     }).join('');
   $('#nameBack').onclick = () => { out.hidden = true; $('#recs').hidden = false; };
   out.querySelectorAll('.hit[data-i]').forEach(el => el.onclick = () => { const h = hits[+el.dataset.i]; openRec(h.recording_id, h.start); });

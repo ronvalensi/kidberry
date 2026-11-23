@@ -32,17 +32,20 @@ EST_TOKENS_PER_BLOCK = 9000       # used only to avoid starting batches that wou
 def _intro() -> str:
     """The first paragraph of the AI instructions, built from settings.json (child, other children, languages)."""
     st = settings.S
-    c, kids, lang = st["child"], st["other_children"], st["staff_languages"]
+    c, kids = st["child"], st["other_children"]
     parts = [f"You are helping a parent review transcripts of audio recorded during their child's day at a kindergarten in {st['country']}. "
              "The recorder sits in the child's bag, so the audio is muffled, and the transcript comes from automatic speech recognition: "
              "many Hebrew words are misrecognized (similar-sounding words swapped, words split or merged)."]
-    if lang.get("spanish"):
-        note = f" ({lang['spanish_note']})" if lang.get("spanish_note") else ""
-        parts.append(f"Most lines are Hebrew, some English, and some Spanish: several staff members speak Spanish{note} to each other "
-                     "and sometimes to the children. Speech recognition sometimes writes Spanish out phonetically in Hebrew letters; "
-                     'when a "he" line is clearly Spanish, reconstruct it in Spanish.')
+    others = [l for l in settings.languages() if l != "he"]
+    if others:
+        names = [settings.LANGUAGE_NAMES[l] + (f" ({settings.language_note(l)})" if settings.language_note(l) else "")
+                 for l in others]
+        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        parts.append(f"Most lines are Hebrew; some are {listed}: staff members also speak these to each other and "
+                     "sometimes to the children. Speech recognition sometimes writes these languages out phonetically in "
+                     'Hebrew letters; when a "he" line is clearly another of these languages, reconstruct it in that language.')
     else:
-        parts.append("Most lines are Hebrew, some English.")
+        parts.append("The kindergarten speaks Hebrew.")
     parts.append("Speakers are kindergarten staff (גננת, סייעת, nannies), children, and parents at drop-off and pickup.")
     if c["name"]:
         n = c["name"]
@@ -576,10 +579,10 @@ def main() -> None:
                 break
         print(f"  {keyword_flags(conn, rec['id'])} keyword flags")   # again: corrections may reveal new words
     if reviewer:
-        from .translate import translate_all   # AI corrections may have changed Spanish lines
-        n = translate_all(conn)
-        if n:
-            print(f"Re-translated {n} corrected Spanish lines to English (local, free)")
+        from .translate import summary, translate_all   # AI corrections may have changed non-Hebrew lines
+        done = translate_all(conn)
+        if done:
+            print(f"Re-translated corrected lines (local, free): {summary(done)}")
         print(f"Tokens used this run: {tokens_today(conn) - before:,}; today: {tokens_today(conn):,} "
               f"of {config.AI_DAILY_TOKEN_CAP:,}")
 

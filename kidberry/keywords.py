@@ -1,4 +1,4 @@
-"""Warning phrases (Hebrew + English + Spanish) checked against every transcript line.
+"""Warning phrases (Hebrew + English + Spanish + Russian) checked against every transcript line.
 
 Edit freely: each entry is (phrase, category, severity 1-5). Matching is case-insensitive.
 Hebrew single words of 4+ letters also match with up to two prefix letters (ו/ה/ש/ל/כ/ב/מ),
@@ -72,6 +72,21 @@ KEYWORDS: list[tuple[str, str, int]] = [
     ("nuestro secreto", "secrecy", 5), ("no le cuentes", "secrecy", 4),
     ("sin comer", "neglect", 3), ("no vas a comer", "neglect", 3), ("dejalo llorar", "neglect", 3),
     ("que llore", "neglect", 2), ("tengo miedo", "distress", 3), ("ayuda", "distress", 2), ("quiero a mi mamá", "distress", 2),
+    # ---- Russian (for staff who speak Russian; ё and е spellings both listed)
+    ("ударил", "physical", 4), ("ударила", "physical", 4), ("бьёт", "physical", 4), ("бьет", "physical", 4),
+    ("побью", "threat", 4), ("я тебя ударю", "threat", 5), ("отшлёпаю", "threat", 4), ("отшлепаю", "threat", 4),
+    ("пощёчина", "physical", 4), ("пощечина", "physical", 4), ("ущипнул", "physical", 3), ("ущипнула", "physical", 3),
+    ("толкнул", "physical", 3), ("толкнула", "physical", 3), ("мне больно", "physical", 3), ("больно", "physical", 2),
+    ("отпусти", "physical", 3), ("не трогай", "physical", 3),
+    ("накажу", "threat", 2), ("получишь", "threat", 3), ("запру", "threat", 4), ("я тебя убью", "threat", 4),
+    ("дурак", "insult", 3), ("дура", "insult", 3), ("идиот", "insult", 4), ("тупой", "insult", 3), ("тупая", "insult", 3),
+    ("заткнись", "insult", 4), ("закрой рот", "insult", 4), ("плакса", "insult", 3), ("бестолочь", "insult", 3),
+    ("противный", "insult", 2), ("противная", "insult", 2), ("позор", "insult", 2), ("балбес", "insult", 2),
+    ("не говори маме", "secrecy", 4), ("не говори папе", "secrecy", 4), ("никому не говори", "secrecy", 4),
+    ("не рассказывай", "secrecy", 4), ("это секрет", "secrecy", 4), ("наш секрет", "secrecy", 5),
+    ("без еды", "neglect", 3), ("не будешь есть", "neglect", 3), ("пусть плачет", "neglect", 3),
+    ("мне страшно", "distress", 3), ("я боюсь", "distress", 3), ("помогите", "distress", 4), ("хочу к маме", "distress", 2),
+    ("хочу домой", "distress", 2),
     # ---- bad language near children (not necessarily aimed at a child; severity 1-2)
     # Hebrew. Ambiguous words are avoided on purpose: "כוס" alone is also "a cup", "זין" also a letter.
     ("זונה", "profanity", 2), ("בן זונה", "profanity", 2), ("שרמוטה", "profanity", 2), ("כוס אמק", "profanity", 2),
@@ -87,6 +102,11 @@ KEYWORDS: list[tuple[str, str, int]] = [
     ("la puta", "profanity", 2), ("puta madre", "profanity", 2), ("hijo de puta", "profanity", 2), ("puto", "profanity", 2),
     ("concha de", "profanity", 2), ("la concha", "profanity", 2), ("forro", "profanity", 1), ("chupame", "profanity", 2),
     ("me cago", "profanity", 2), ("coño", "profanity", 2), ("pendejo", "profanity", 2),
+    # Russian
+    ("блять", "profanity", 2), ("блядь", "profanity", 2), ("бля", "profanity", 2), ("сука", "profanity", 2),
+    ("хуй", "profanity", 2), ("нахуй", "profanity", 2), ("пиздец", "profanity", 2), ("ебать", "profanity", 2),
+    ("твою мать", "profanity", 1), ("чёрт", "profanity", 1), ("черт", "profanity", 1), ("говно", "profanity", 1),
+    ("дерьмо", "profanity", 1),
 ]
 
 _PREFIX = "[והשלכבמ]{0,2}"   # e.g. ו+ה in "והמטומטם"

@@ -47,7 +47,7 @@ def recordings():
 def segments(rec_id: int):
     with connect() as conn:
         rows = conn.execute(
-            "SELECT id, start, end, text, corrected, corrected_confidence, translation, language, avg_logprob,"
+            "SELECT id, start, end, text, corrected, corrected_confidence, translation, translation_lang, language, avg_logprob,"
             " no_speech_prob,"
             " filtered FROM segments"
             " WHERE recording_id=? ORDER BY start", (rec_id,)
@@ -68,7 +68,7 @@ def mentions():
     from .names import mention
     with connect() as conn:
         rows = conn.execute(
-            """SELECT s.recording_id, r.name, r.started_at, s.start, s.end, s.text, s.corrected, s.translation
+            """SELECT s.recording_id, r.name, r.started_at, s.start, s.end, s.text, s.corrected, s.translation, s.translation_lang
                FROM segments s JOIN recordings r ON r.id=s.recording_id
                WHERE s.filtered IS NULL ORDER BY r.started_at, s.start""").fetchall()
         out = []

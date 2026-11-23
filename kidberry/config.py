@@ -6,13 +6,16 @@ DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "kidberry.db"
 PROCESSED_DIR = ROOT / "recordings" / "processed"   # volume-boosted copies used for transcription + playback
 
-# Two models: a general one (language detection + English) and a Hebrew-tuned one.
-# Each ~30s window is routed to the model of its detected language (Hebrew or English only).
+# Two models: a Hebrew-tuned one, and a general one for the other languages + language detection.
+# Only the ones the kindergarten's languages need are loaded (settings.json "languages"): Hebrew-only
+# kindergartens never download or load the general model. Each ~30s window goes to the model of its language.
 MODEL_GENERAL = os.environ.get("KIDBERRY_MODEL_EN", "large-v3")
 MODEL_HEBREW = os.environ.get("KIDBERRY_MODEL_HE", "ivrit-ai/whisper-large-v3-turbo-ct2")
 # A window is treated as English only if the detector gives English at least this probability.
 ENGLISH_MIN_PROB = float(os.environ.get("KIDBERRY_ENGLISH_MIN_PROB", "0.5"))
 SPANISH_MIN_PROB = float(os.environ.get("KIDBERRY_SPANISH_MIN_PROB", "0.6"))  # below this, "Spanish" is usually noise
+RUSSIAN_MIN_PROB = float(os.environ.get("KIDBERRY_RUSSIAN_MIN_PROB", "0.6"))
+LANGUAGE_MIN_PROB = {"en": ENGLISH_MIN_PROB, "es": SPANISH_MIN_PROB, "ru": RUSSIAN_MIN_PROB}
 DEVICE = os.environ.get("KIDBERRY_DEVICE", "cuda")
 COMPUTE_TYPE = os.environ.get("KIDBERRY_COMPUTE", "float16")
 
@@ -34,6 +37,9 @@ AI_NAME_PAD = int(os.environ.get("KIDBERRY_AI_NAME_PAD", "60"))   # smart mode a
 AI_SMART_PAD = int(os.environ.get("KIDBERRY_AI_SMART_PAD", "180"))   # seconds before/after each trigger
 AI_BACKEND = os.environ.get("KIDBERRY_AI_BACKEND", "subscription")
 AI_DAILY_TOKEN_CAP = int(os.environ.get("KIDBERRY_AI_DAILY_TOKEN_CAP", "150000"))  # stops cleanly when reached
+
+# Model downloads: Windows without Developer Mode cannot use the cache's symlinks; that is fine, so no warning.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("KIDBERRY_PORT", "8000"))

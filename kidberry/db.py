@@ -87,7 +87,7 @@ LEGACY_COLUMNS = {
     "segments": {"language": "TEXT", "compression_ratio": "REAL", "filtered": "TEXT",
                  "corrected": "TEXT",              # AI best guess of what was actually said
                  "corrected_confidence": "TEXT",   # high | medium | low
-                 "translation": "TEXT",            # English translation (Spanish lines)
+                 "translation": "TEXT",            # translation of a non-Hebrew line (see translation_lang)
                  "translated_from": "TEXT"},       # the text it was translated from, to detect stale ones
     "flags": {"quote": "TEXT", "segment_ids": "TEXT",
               "adult_response": "TEXT"},           # crying flags: yes | no | unclear (from the AI)
@@ -114,7 +114,13 @@ def _v2_transcribe_checkpoint(conn):
     _add_columns(conn, "recordings", {"transcribed_until": "REAL"})
 
 
-UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint]
+def _v3_translation_language(conn):
+    # Translations now go into the interface language (English or Hebrew); remember which one each is in.
+    _add_columns(conn, "segments", {"translation_lang": "TEXT"})
+    conn.execute("UPDATE segments SET translation_lang='en' WHERE translation IS NOT NULL")
+
+
+UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint, _v3_translation_language]
 SCHEMA_VERSION = len(UPGRADES)
 
 

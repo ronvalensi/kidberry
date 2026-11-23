@@ -6,7 +6,8 @@ Usage:
 Pipeline per file:
   1. enhance  - ffmpeg high-pass + dynamic loudness normalization -> recordings/processed/<name>.wav
   2. window   - split into ~30s windows, cutting at the quietest moment to avoid splitting words
-  3. language - detect Hebrew vs English per window (other languages are not allowed)
+  3. language - pick the window's language among the kindergarten's languages (settings.json);
+                skipped when there is only one
   4. transcribe with the matching model (Hebrew-tuned or general), word timestamps on
   5. filter   - drop known Whisper hallucinations ("thanks for watching", repetition loops, ...)
 """
@@ -22,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import config
+from . import config, settings
 from .db import connect
 
 SR = 16000
@@ -132,6 +133,8 @@ _HALLUCINATION = re.compile(
     r"terima kasih|takk for|ご視聴|おやすみ|amara\.org|subtitles? by|translated by|"
     r"תודה שצפיתם|תודה על הצפייה|כתוביות|הירשמו לערוץ|"
     r"gracias por ver|suscr[ií]bete|subt[ií]tulos|"
+    r"субтитр|редактор субтитров|продолжение следует|спасибо за (просмотр|внимание)|подписывайтесь|"
+    r"ставьте лайк|dimatorzok|"
     # The Hebrew model was trained partly on Knesset sessions and falls back to them on noise.
     r"היושב[- ]?ראש|הכנסת|חברי חברי|חברות וחברי|רבותי|הצבעה|אדוני",
     re.IGNORECASE,
@@ -139,7 +142,7 @@ _HALLUCINATION = re.compile(
 # Short phrases Whisper emits on noise. A segment made only of these carries no information and
 # is usually invented, so it is filtered ("תודה רבה.", "Oh, oh, oh.", "Hi!").
 _FILLERS = re.compile(r"\b(thank you( very much)?|thanks|bye( bye)?|you|okay|ok|oh|hi|hey|hello|"
-                      r"(muchas )?gracias|adi[oó]s|hola|chao)\b|"
+                      r"(muchas )?gracias|adi[oó]s|hola|chao|спасибо|пока|привет|ага)\b|"
                       r"(ו?תודה( רבה)?( לך| לכם)?|ביי( ביי)?|שלום|היי|אה+)", re.IGNORECASE)
 _BIDI = re.compile("[‎‏‪-‮⁦-⁩]")
 
@@ -173,33 +176,57 @@ def filter_reason(text: str, avg_logprob: float, no_speech_prob: float, compress
 
 # ---------------------------------------------------------------- transcription
 
+def models_needed(langs: list[str]) -> list[str]:
+    """The speech models a set of languages needs (what will be downloaded and loaded)."""
+    need = []
+    if "he" in langs:
+        need.append(config.MODEL_HEBREW)
+    if any(l != "he" for l in langs) and config.MODEL_GENERAL not in need:
+        need.append(config.MODEL_GENERAL)
+    return need
+
+
 class Transcriber:
-    def __init__(self):
+    def __init__(self, langs: list[str] | None = None):
         _load_cuda_dlls()
         from faster_whisper import WhisperModel
-        print(f"Loading models: {config.MODEL_GENERAL} + {config.MODEL_HEBREW} on {config.DEVICE}...")
-        self.general = WhisperModel(config.MODEL_GENERAL, device=config.DEVICE, compute_type=config.COMPUTE_TYPE)
-        if config.MODEL_HEBREW == config.MODEL_GENERAL:
+        self.langs = langs or settings.languages()
+        names = ", ".join(settings.LANGUAGE_NAMES[l] for l in self.langs)
+        need = models_needed(self.langs)
+        print(f"Languages: {names}. Loading {' + '.join(need)} on {config.DEVICE}...")
+
+        def load(m):
+            return WhisperModel(m, device=config.DEVICE, compute_type=config.COMPUTE_TYPE)
+        self.general = load(config.MODEL_GENERAL) if config.MODEL_GENERAL in need else None
+        if "he" not in self.langs:
+            self.hebrew = None
+        elif config.MODEL_HEBREW == config.MODEL_GENERAL:
             self.hebrew = self.general
         else:
-            self.hebrew = WhisperModel(config.MODEL_HEBREW, device=config.DEVICE, compute_type=config.COMPUTE_TYPE)
+            self.hebrew = load(config.MODEL_HEBREW)
 
     def language(self, chunk: np.ndarray) -> str:
-        """Hebrew by default; English or Spanish only when the detector is clearly confident.
+        """The window's language, chosen only among the kindergarten's languages.
 
-        On muffled audio Whisper's detector often guesses other languages (es/jw/nn) with low
-        confidence, and forcing a wrong language makes Whisper *translate* or invent ("Gracias.").
-        So English/Spanish must be earned. (The Hebrew-tuned model always answers "he".)
-        Spanish matters where staff speak Spanish to each other.
+        Hebrew is the default when it is spoken; another language must be clearly detected. On muffled
+        audio Whisper's detector often guesses other languages with low confidence, and forcing a wrong
+        language makes Whisper *translate* or invent ("Gracias."), so a non-default language must be
+        earned. (The Hebrew-tuned model always answers "he", so detection uses the general model.)
         """
+        if len(self.langs) == 1:
+            return self.langs[0]
         _, _, probs = self.general.detect_language(audio=chunk)
-        p = dict(probs)
-        p_he = p.get("he", 0.0)
-        for lang, min_p in (("en", config.ENGLISH_MIN_PROB), ("es", config.SPANISH_MIN_PROB)):
-            other = p.get("es" if lang == "en" else "en", 0.0)
-            if p.get(lang, 0.0) >= min_p and p[lang] > 2 * p_he and p[lang] > other:
+        p = {lang: v for lang, v in dict(probs).items() if lang in self.langs}
+        default = "he" if "he" in self.langs else max(p, key=p.get, default=self.langs[0])
+        p_default = p.get(default, 0.0)
+        for lang in self.langs:
+            if lang == default:
+                continue
+            rivals = max((v for o, v in p.items() if o not in (lang, default)), default=0.0)
+            if (p.get(lang, 0.0) >= config.LANGUAGE_MIN_PROB.get(lang, 0.6)
+                    and p[lang] > 2 * p_default and p[lang] > rivals):
                 return lang
-        return "he"
+        return default
 
     def transcribe_chunk(self, chunk: np.ndarray, lang: str):
         model = self.hebrew if lang == "he" else self.general

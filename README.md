@@ -28,11 +28,25 @@ for every field):
 {
   "child": {"name": "נועם", "name_latin": "Noam", "heard_as": ["נועמי"], "maybe_heard_as": [], "heard_as_common_word": []},
   "other_children": [{"name": "Yael", "native": "יעל"}],
-  "staff_languages": {"spanish": false},
+  "languages": ["he"],
+  "ui_language": "en",
   "recorder": {"path": "E:\RECORD"}
 }
 ```
 `data\` is never uploaded or overwritten by updates.
+
+### Languages
+Set `languages` to what is spoken in the kindergarten: `"he"` Hebrew, `"en"` English, `"es"` Spanish, `"ru"` Russian.
+Only the models these need are downloaded and loaded:
+
+| Languages | Speech models |
+|---|---|
+| Hebrew only | the Hebrew model (~1.6 GB). No language detection, ~40% faster |
+| Hebrew + others | the Hebrew model + Whisper large-v3 (~3 GB), which detects each window's language |
+| no Hebrew | Whisper large-v3 only |
+
+`ui_language` (`"en"` or `"he"`) is the language other languages are translated into. Hebrew lines are never
+translated. `language_notes` can give the AI a hint per language, e.g. `{"es": "Rioplatense"}`.
 
 ## Daily use: one command
 
@@ -41,7 +55,7 @@ Plug in the recorder, then:
 .\.venv\Scripts\python -m kidberry.daily --hours 08:30-15:30
 ```
 It copies new recordings from the recorder (checksum-verified; asks before deleting them from the recorder),
-sets the kindergarten hours, transcribes, detects sounds, translates Spanish, runs keyword flags and the smart AI
+sets the kindergarten hours, transcribes, detects sounds, translates other languages, runs keyword flags and the smart AI
 review, and prints the day's summary and patterns. `--no-ai` skips the AI, `--full` reviews every line,
 `--day YYYY-MM-DD` picks the day. Then open http://127.0.0.1:8000 (start it with `python -m kidberry.server`)
 and **📅 Days overview** for patterns across days.
@@ -83,8 +97,9 @@ happens. Use "Search all recordings" to find a word across every day.
 
 1. The audio is boosted (high-pass + dynamic loudness normalization) into `recordings/processed/`. The original is never modified.
 2. It is split into ~30s windows, cut at quiet moments.
-3. Each window is Hebrew unless the detector is clearly confident it is English (forcing English on Hebrew makes Whisper *translate*).
-4. Hebrew goes to `ivrit-ai/whisper-large-v3-turbo-ct2`, English to `large-v3`.
+3. With several languages, each window is Hebrew unless the detector is clearly confident it is one of the other
+   chosen languages (forcing a wrong language makes Whisper *translate* or invent). With one language, there is no detection.
+4. Hebrew goes to `ivrit-ai/whisper-large-v3-turbo-ct2`, the other languages to `large-v3`.
 5. Likely hallucinations ("תודה רבה", Knesset phrases, "thanks for watching", repetition loops) are kept in the DB but tagged
    `filtered`. They are hidden in the UI unless you tick **Show filtered**.
 
@@ -117,13 +132,15 @@ After changing the filter rules in `transcribe.py`, re-apply them in seconds wit
 - Flags: crying *episodes* with at least 1.5 min of crying (short crying is normal in a toddler group),
   screaming, yelling, impact sounds. Sound flags are severity 1-3; sound alone doesn't prove anything.
 
-## English translation of Spanish
+## Translation
 
 ```powershell
-.\.venv\Scripts\python -m kidberry.translate   # local (Helsinki-NLP/opus-mt-es-en), free
+.\.venv\Scripts\python -m kidberry.translate   # local (Helsinki-NLP OPUS-MT models), free
 ```
-Shown as "EN: …" under each Spanish line and included in search. After the AI review corrects a Spanish
-line, it is re-translated automatically. Garbled Spanish gives garbled English: check odd lines by listening.
+Lines in English, Spanish or Russian are translated into the interface language (`ui_language`), shown as
+"EN: …" / "HE: …" under each line and included in search. After the AI review corrects a line, it is re-translated
+automatically. The child's name is kept as is. Garbled speech gives a garbled translation: check odd lines by listening.
+Translation into Hebrew is rougher than into English.
 
 ## Kindergarten hours
 
@@ -165,7 +182,8 @@ Flags and the AI review only cover drop-off to pickup. Lines outside are shown f
 - [x] Smart AI mode: AI review only around sound/keyword triggers (default; `--full` for every line)
 - [x] Days overview, patterns across days, "did an adult respond?" per crying episode, one daily command
 - [ ] Weekly AI summary of the week's flags
-- [ ] Choose the kindergarten's languages in setup (Hebrew, English, Spanish, Russian); download only the models needed
+- [x] Kindergarten languages in settings (Hebrew, English, Spanish, Russian); only the models needed are loaded
+- [ ] Choose the languages in the setup wizard
 - [ ] Arabic (Hebrew + Arabic kindergartens): waiting for sample recordings to choose and test a dialect model
 - [ ] Later: speaker separation (adult vs child), real clock-time per file
 
@@ -175,7 +193,10 @@ Kidberry downloads these models from Hugging Face on first use; they are not bun
 - Hebrew speech recognition: [ivrit-ai/whisper-large-v3-turbo-ct2](https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ct2) by ivrit.ai (Apache-2.0)
 - Language detection + English: [Whisper large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) by OpenAI, CTranslate2 conversion by Systran (MIT)
 - Sound detection: [AST fine-tuned on AudioSet](https://huggingface.co/MIT/ast-finetuned-audioset-10-10-0.4593) (BSD-3-Clause)
-- Spanish to English: [Helsinki-NLP/opus-mt-es-en](https://huggingface.co/Helsinki-NLP/opus-mt-es-en) (Apache-2.0)
+- Translation: Helsinki-NLP OPUS-MT [es-en](https://huggingface.co/Helsinki-NLP/opus-mt-es-en),
+  [en-he](https://huggingface.co/Helsinki-NLP/opus-mt-en-he), [es-he](https://huggingface.co/Helsinki-NLP/opus-mt-es-he),
+  [ru-he](https://huggingface.co/Helsinki-NLP/opus-mt-ru-he) (Apache-2.0) and
+  [ru-en](https://huggingface.co/Helsinki-NLP/opus-mt-ru-en) (CC-BY-4.0)
 
 ## Copyright
 

@@ -1,4 +1,7 @@
+import shutil
 import sqlite3
+from datetime import datetime
+
 from .config import DATA_DIR, DB_PATH
 
 SCHEMA = """
@@ -78,8 +81,8 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 );
 """
 
-# Columns added after the first version; added to existing databases on connect.
-MIGRATIONS = {
+# Columns added before versioning existed (version 1). Added to older databases on connect.
+LEGACY_COLUMNS = {
     "recordings": {"processed_path": "TEXT", "started_at": "TEXT", "analyzed_at": "TEXT"},
     "segments": {"language": "TEXT", "compression_ratio": "REAL", "filtered": "TEXT",
                  "corrected": "TEXT",              # AI best guess of what was actually said
@@ -91,6 +94,48 @@ MIGRATIONS = {
 }
 
 
+def _add_columns(conn, table: str, cols: dict) -> None:
+    have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    for col, typ in cols.items():
+        if col not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+
+
+# Numbered schema upgrades. The database remembers its version (PRAGMA user_version); on connect every
+# newer step runs once, in order, after a backup copy is made. Only ever APPEND steps here - never edit or
+# reorder old ones, because people's databases are already past them.
+def _v1_legacy_columns(conn):
+    for table, cols in LEGACY_COLUMNS.items():
+        _add_columns(conn, table, cols)
+
+
+def _v2_transcribe_checkpoint(conn):
+    # How far transcription got (seconds into the file), so an interrupted file resumes instead of restarting.
+    _add_columns(conn, "recordings", {"transcribed_until": "REAL"})
+
+
+UPGRADES = [_v1_legacy_columns, _v2_transcribe_checkpoint]
+SCHEMA_VERSION = len(UPGRADES)
+
+
+def _upgrade(conn) -> None:
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version > SCHEMA_VERSION:
+        raise RuntimeError(f"The database is from a newer Kidberry (schema {version}, this version knows {SCHEMA_VERSION}). "
+                           "Update Kidberry.")
+    if version == SCHEMA_VERSION:
+        return
+    if version > 0 or conn.execute("SELECT count(*) FROM recordings").fetchone()[0]:
+        backup = DB_PATH.with_name(f"{DB_PATH.stem}.before-v{SCHEMA_VERSION}-{datetime.now():%Y%m%d-%H%M%S}.db")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        shutil.copy2(DB_PATH, backup)
+        print(f"Upgrading the database to version {SCHEMA_VERSION} (backup: {backup.name})")
+    for step in UPGRADES[version:]:
+        with conn:
+            step(conn)
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
 def connect() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -98,9 +143,5 @@ def connect() -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
-    for table, cols in MIGRATIONS.items():
-        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
-        for col, typ in cols.items():
-            if col not in have:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+    _upgrade(conn)
     return conn

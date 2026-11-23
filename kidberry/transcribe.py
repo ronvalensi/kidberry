@@ -29,6 +29,7 @@ SR = 16000
 WINDOW_S = 30.0
 CUT_SEARCH_S = 6.0   # look for the quietest cut point in the last N seconds of each window
 FRAME_S = 0.1
+CHECKPOINT_S = 300.0  # save progress every ~5 min of audio, so an interrupted file resumes from there
 
 
 def _load_cuda_dlls() -> None:
@@ -208,12 +209,16 @@ class Transcriber:
         )
         return list(segs)
 
-    def run(self, conn, rec_id: int, path: Path) -> None:
+    def run(self, conn, rec_id: int, path: Path, fresh: bool = False) -> None:
+        """Transcribe one file. Progress is saved every CHECKPOINT_S seconds of audio; a file that was
+        interrupted (killed, power loss, Ctrl+C) continues from its last checkpoint unless fresh=True.
+        Resuming is exact because the windows are cut deterministically from the same processed audio."""
         conn.execute("UPDATE recordings SET status='processing', error=NULL WHERE id=?", (rec_id,))
         conn.commit()
         t0 = time.time()
 
         print("  enhancing audio...", end="", flush=True)
+        existed = (config.PROCESSED_DIR / (path.stem + ".wav")).exists()
         processed = enhance(path)
         conn.execute("UPDATE recordings SET processed_path=? WHERE id=?", (str(processed), rec_id))
         conn.commit()
@@ -221,36 +226,62 @@ class Transcriber:
         duration = len(audio) / SR
         print(f" done ({fmt(duration)})")
 
-        rows, dropped, langs = [], 0, {"he": 0, "en": 0, "es": 0}
+        done_until = conn.execute("SELECT transcribed_until FROM recordings WHERE id=?", (rec_id,)).fetchone()[0]
+        if fresh or not existed or not done_until:   # new processed audio means old windows may not line up
+            done_until = 0.0
+            with conn:
+                conn.execute("DELETE FROM segments WHERE recording_id=?", (rec_id,))
+                conn.execute("UPDATE recordings SET transcribed_until=0 WHERE id=?", (rec_id,))
+        else:
+            with conn:   # drop anything written after the checkpoint (there should be none)
+                conn.execute("DELETE FROM segments WHERE recording_id=? AND start>=?", (rec_id, done_until))
+            print(f"  resuming from {fmt(done_until)} ({done_until / duration:.0%} was already done)")
+
+        kept, dropped = conn.execute(
+            "SELECT count(*) - count(filtered), count(filtered) FROM segments WHERE recording_id=?", (rec_id,)).fetchone()
+        rows, last_save, started_at = [], done_until, done_until
+
+        def save(until: float) -> None:
+            with conn:
+                conn.executemany(
+                    "INSERT INTO segments (recording_id, start, end, text, language, avg_logprob, no_speech_prob,"
+                    " compression_ratio, filtered, words_json) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+                conn.execute("UPDATE recordings SET transcribed_until=? WHERE id=?", (until, rec_id))
+            rows.clear()
+
         for w_start, w_end in windows(audio):
+            if w_end <= done_until + 0.01:
+                continue
             chunk = audio[int(w_start * SR): int(w_end * SR)]
             lang = self.language(chunk)
-            langs[lang] += 1
             for seg in self.transcribe_chunk(chunk, lang):
                 text = clean(seg.text)
                 reason = filter_reason(text, seg.avg_logprob, seg.no_speech_prob, seg.compression_ratio)
                 dropped += reason is not None
+                kept += reason is None
                 words = [{"w": clean(w.word), "s": round(w_start + w.start, 2), "e": round(w_start + w.end, 2),
                           "p": round(w.probability, 3)} for w in (seg.words or [])]
                 start, end = w_start + seg.start, min(w_start + seg.end, w_end)
                 rows.append((rec_id, start, end, text, lang, seg.avg_logprob, seg.no_speech_prob,
                              seg.compression_ratio, reason, json.dumps(words, ensure_ascii=False)))
+            if w_end - last_save >= CHECKPOINT_S:
+                save(w_end)
+                last_save = w_end
             elapsed = time.time() - t0
-            print(f"\r  {w_end / duration:6.1%}  [{fmt(w_end)}]  kept {len(rows) - dropped}, filtered {dropped}"
-                  f"  ({w_end / max(elapsed, 1):.0f}x realtime)   ", end="", flush=True)
+            print(f"\r  {w_end / duration:6.1%}  [{fmt(w_end)}]  kept {kept}, filtered {dropped}"
+                  f"  ({(w_end - started_at) / max(elapsed, 1):.0f}x realtime)   ", end="", flush=True)
         print()
+        save(duration)
 
-        main_lang = max(langs, key=langs.get)
+        langs = dict(conn.execute("SELECT language, count(*) FROM segments WHERE recording_id=? AND filtered IS NULL"
+                                  " GROUP BY language", (rec_id,)).fetchall())
+        main_lang = max(langs, key=langs.get) if langs else "he"
         with conn:
-            conn.execute("DELETE FROM segments WHERE recording_id=?", (rec_id,))
-            conn.executemany(
-                "INSERT INTO segments (recording_id, start, end, text, language, avg_logprob, no_speech_prob,"
-                " compression_ratio, filtered, words_json) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
             conn.execute(
                 "UPDATE recordings SET status='done', duration=?, language=?, processed_at=? WHERE id=?",
                 (duration, main_lang, datetime.now().isoformat(timespec="seconds"), rec_id))
-        print(f"  done in {(time.time() - t0) / 60:.1f} min: {len(rows) - dropped} segments kept, {dropped} filtered"
-              f" as likely hallucinations; windows he={langs['he']} en={langs['en']} es={langs['es']}")
+        print(f"  done in {(time.time() - t0) / 60:.1f} min: {kept} segments kept, {dropped} filtered"
+              f" as likely hallucinations; lines by language: {langs}")
 
 
 def refilter() -> None:
@@ -294,11 +325,11 @@ def main() -> None:
     for i, (rec_id, path) in enumerate(todo, 1):
         print(f"[{i}/{len(todo)}] {path.name}")
         try:
-            tr.run(conn, rec_id, path)
+            tr.run(conn, rec_id, path, fresh=args.force)
         except KeyboardInterrupt:
             conn.execute("UPDATE recordings SET status='pending' WHERE id=?", (rec_id,))
             conn.commit()
-            sys.exit("\nInterrupted; this file will be retried next run.")
+            sys.exit("\nInterrupted; this file continues from its last checkpoint next run.")
         except Exception as e:  # keep going with the remaining files
             print(f"\n  ERROR: {e}")
             conn.execute("UPDATE recordings SET status='error', error=? WHERE id=?", (str(e), rec_id))

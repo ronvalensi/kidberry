@@ -174,3 +174,8 @@ Kidberry downloads these models from Hugging Face on first use; they are not bun
 - Language detection + English: [Whisper large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) by OpenAI, CTranslate2 conversion by Systran (MIT)
 - Sound detection: [AST fine-tuned on AudioSet](https://huggingface.co/MIT/ast-finetuned-audioset-10-10-0.4593) (BSD-3-Clause)
 - Spanish to English: [Helsinki-NLP/opus-mt-es-en](https://huggingface.co/Helsinki-NLP/opus-mt-es-en) (Apache-2.0)
+
+## Copyright
+
+© 2026 ronvalensi. All rights reserved. The code is shared here to be read and tried; it may not be copied,
+modified or redistributed without permission. (The models listed above keep their own licenses.)

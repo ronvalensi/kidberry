@@ -15,7 +15,7 @@ changes later, or the interface language changes, the line is translated again o
 import argparse
 import re
 
-from . import config, settings
+from . import config, progress, settings
 from .db import connect
 
 MODELS = {   # (from, to) -> Helsinki-NLP OPUS-MT model
@@ -74,7 +74,9 @@ def _restore_name(text: str, target: str) -> str:
 def translate_all(conn, force: bool = False) -> dict:
     """Translate what is missing or stale. Returns {"es->en": n, ...} for the pairs that had work."""
     done = {}
-    for src_lang, target in pairs_needed():
+    pairs = pairs_needed()
+    for k, (src_lang, target) in enumerate(pairs):
+        progress.step(k / max(len(pairs), 1), f"{settings.LANGUAGE_NAMES[src_lang]} to {settings.LANGUAGE_NAMES[target]}")
         rows = conn.execute(
             "SELECT id, COALESCE(corrected, text) AS src, translated_from, translation_lang FROM segments"
             " WHERE language=? AND filtered IS NULL", (src_lang,)).fetchall()

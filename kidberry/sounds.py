@@ -21,7 +21,7 @@ import time
 
 import numpy as np
 
-from . import config, hardware
+from . import config, hardware, progress
 from .db import connect, covers, process_range
 
 MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
@@ -125,7 +125,7 @@ class Scanner:
                 yield s / SR, {c: round(float(v), 4) for c, v in zip(self.classes, p)}
 
 
-def scan_recording(conn, scanner: Scanner, rec) -> None:
+def scan_recording(conn, scanner: Scanner, rec, report=None) -> None:
     from .transcribe import AudioFile
     t0 = time.time()
     audio = AudioFile(rec["processed_path"] or rec["path"])
@@ -136,6 +136,8 @@ def scan_recording(conn, scanner: Scanner, rec) -> None:
         rows.append((rec["id"], start, json.dumps(scores)))
         if len(rows) % 50 == 0:
             print(f"\r  {(start - lo) / max(hi - lo, 1):6.1%}", end="", flush=True)
+            if report:
+                report((start - lo) / max(hi - lo, 1))
     with conn:
         conn.execute("DELETE FROM sound_scores WHERE recording_id=?", (rec["id"],))
         conn.executemany("INSERT INTO sound_scores (recording_id, start, scores) VALUES (?,?,?)", rows)
@@ -267,7 +269,8 @@ def main() -> None:
 
     scanner = None
     with hardware.keep_awake():
-        for rec in recs:
+        for i, rec in enumerate(recs):
+            progress.step(i / len(recs), f"{rec['name']}")
             print(f"[{rec['id']}] {rec['name']}")
             if args.stats:
                 stats(conn, rec)
@@ -276,7 +279,8 @@ def main() -> None:
             wider = scanned and rec["duration"] and not covers(rec["sounds_range"], process_range(conn, rec, rec["duration"]))
             if not args.redetect and (args.force or not scanned or wider):
                 scanner = scanner or Scanner()
-                scan_recording(conn, scanner, rec)
+                scan_recording(conn, scanner, rec,
+                               report=lambda f, i=i, n=len(recs), name=rec["name"]: progress.step((i + f) / n, name))
             print(f"  {sound_flags(conn, rec)} sound flags")
 
 

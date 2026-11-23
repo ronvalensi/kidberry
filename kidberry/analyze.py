@@ -359,7 +359,7 @@ def make_blocks(segs: list, selected: list) -> list[tuple[list, list]]:
     return blocks
 
 
-def ai_review_recording(conn, reviewer, rec, force: bool, budget: dict, full: bool = False) -> None:
+def ai_review_recording(conn, reviewer, rec, force: bool, budget: dict, full: bool = False, report=None) -> None:
     """Review a recording batch by batch. Each batch is saved as soon as it returns, so an interrupted
     run (cap, usage limit, Ctrl+C) resumes with the lines that have no corrections yet."""
     from .sounds import detect
@@ -415,6 +415,8 @@ def ai_review_recording(conn, reviewer, rec, force: bool, budget: dict, full: bo
                 result, t_in, t_out, cost = out
                 log_usage(conn, reviewer.name, rec["id"], t_in, t_out, cost)
                 done += 1
+                if report:
+                    report(done / max(done + len(todo), 1))
                 if result is None:
                     print(f"  [warn] {label}: no usable answer (declined or cut off); skipped")
                     continue
@@ -557,12 +559,15 @@ def main() -> None:
     budget = {"blocks": args.blocks if args.blocks is not None else 10**9}
     before = tokens_today(conn)
 
-    for rec in recs:
+    from . import progress
+    for i, rec in enumerate(recs):
         print(f"[{rec['id']}] {rec['name']}")
+        progress.step(i / len(recs), f"{rec['name']}")
         keyword_flags(conn, rec["id"])            # keyword hits are smart-mode triggers, so first
         if reviewer:
             try:
-                ai_review_recording(conn, reviewer, rec, args.force, budget, full)
+                ai_review_recording(conn, reviewer, rec, args.force, budget, full,
+                                    report=lambda f, i=i, n=len(recs), name=rec["name"]: progress.step((i + f) / n, name))
             except Stop:
                 print(f"  {keyword_flags(conn, rec['id'])} keyword flags")
                 break

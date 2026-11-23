@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import config, hardware, settings
+from . import config, hardware, progress, settings
 from .db import connect, covers, process_range
 
 SR = 16000
@@ -308,7 +308,7 @@ class Transcriber:
         )
         return list(segs)
 
-    def run(self, conn, rec_id: int, path: Path, fresh: bool = False) -> None:
+    def run(self, conn, rec_id: int, path: Path, fresh: bool = False, report=None) -> None:
         """Transcribe one file - only the kindergarten hours (plus a margin) when they are set for its day.
         Progress is saved every CHECKPOINT_S seconds of audio; a file that was interrupted (killed, power
         loss, Ctrl+C) continues from its last checkpoint unless fresh=True. The windows are cut the same
@@ -376,6 +376,8 @@ class Transcriber:
             if w_end - last_save >= CHECKPOINT_S:
                 save(w_end)
                 last_save = w_end
+            if report:
+                report((w_end - lo) / max(hi - lo, 1), f"{path.name}: {fmt(w_end)} of {fmt(hi)}")
             elapsed = time.time() - t0
             print(f"\r  {(w_end - lo) / max(hi - lo, 1):6.1%}  [{fmt(w_end)}]  kept {kept}, filtered {dropped}"
                   f"  ({(w_end - started_at) / max(time.time() - t_work, 1):.0f}x realtime)   ", end="", flush=True)
@@ -446,10 +448,18 @@ def main() -> None:
 
 
 def _run_all(conn, tr, todo) -> None:
+    from .estimate import _work_range, wav_seconds
+    weights = []
+    for _, path, _ in todo:
+        lo, hi = _work_range(conn, path.name, wav_seconds(path))
+        weights.append(max(hi - lo, 1.0))
+    total = sum(weights)
     for i, (rec_id, path, fresh) in enumerate(todo, 1):
         print(f"[{i}/{len(todo)}] {path.name}")
+        before = sum(weights[: i - 1])
+        report = lambda f, msg, w=weights[i - 1], b=before: progress.step((b + w * f) / total, msg)
         try:
-            tr.run(conn, rec_id, path, fresh=fresh)
+            tr.run(conn, rec_id, path, fresh=fresh, report=report)
         except KeyboardInterrupt:
             conn.execute("UPDATE recordings SET status='pending' WHERE id=?", (rec_id,))
             conn.commit()

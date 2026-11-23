@@ -178,6 +178,146 @@ def audio(rec_id: int, original: bool = False, range: str | None = Header(defaul
     })
 
 
+# ---------------------------------------------------------------- processing runs from the page
+
+HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+import threading  # noqa: E402
+_start_lock = threading.Lock()   # the page's requests run in threads: one start at a time
+DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _recorder() -> dict:
+    """Is the recorder plugged in, and what new recordings does it hold (by day)?"""
+    from . import settings
+    from .estimate import RAW
+    from .transcribe import started_at_from_name
+    path = settings.S["recorder"]["path"]
+    if not path:
+        return {"path": None, "connected": False, "new": [], "days": []}
+    src = Path(path)
+    if not src.is_dir():
+        return {"path": path, "connected": False, "new": [], "days": []}
+    new = [f.name for f in sorted(src.iterdir()) if f.suffix.lower() == ".wav"
+           and not ((RAW / f.name).exists() and (RAW / f.name).stat().st_size == f.stat().st_size)]
+    days = sorted({(started_at_from_name(n) or "")[:10] for n in new} - {""})
+    return {"path": path, "connected": True, "new": new, "days": days}
+
+
+@app.get("/api/job")
+def job_status():
+    from . import progress
+    return progress.read()
+
+
+@app.get("/api/job/setup")
+def job_setup():
+    """What the import form needs: the recorder's state, a suggested day and hours."""
+    from datetime import date, datetime
+    rec = _recorder()
+    day = rec["days"][-1] if rec["days"] else date.today().isoformat()
+    with connect() as conn:
+        have = conn.execute("SELECT dropoff, pickup FROM school_hours WHERE day=?", (day,)).fetchone()
+        if not have:   # same weekday last time, else the latest day
+            wd = datetime.strptime(day, "%Y-%m-%d").strftime("%w")
+            have = (conn.execute("SELECT dropoff, pickup FROM school_hours WHERE strftime('%w', day)=? "
+                                 "ORDER BY day DESC LIMIT 1", (wd,)).fetchone()
+                    or conn.execute("SELECT dropoff, pickup FROM school_hours ORDER BY day DESC LIMIT 1").fetchone())
+    return {"recorder": rec, "day": day, "dropoff": have["dropoff"] if have else "08:00",
+            "pickup": have["pickup"] if have else "16:00", "cap": config.AI_DAILY_TOKEN_CAP}
+
+
+@app.get("/api/job/estimate")
+def job_estimate(day: str, dropoff: str, pickup: str, ai: bool = True, full: bool = False):
+    """The estimate for these hours - computed with the hours applied but not saved (rolled back)."""
+    from . import hardware, settings
+    from .analyze import tokens_today
+    from .estimate import estimate
+    if not (DAY.match(day) and HHMM.match(dropoff) and HHMM.match(pickup)) or dropoff >= pickup:
+        raise HTTPException(400, "give the day as YYYY-MM-DD and times as HH:MM, drop-off before pickup")
+    conn = connect()
+    try:
+        conn.execute("INSERT OR REPLACE INTO school_hours (day, dropoff, pickup) VALUES (?,?,?)", (day, dropoff, pickup))
+        src = settings.S["recorder"]["path"]
+        est = estimate(conn, Path(src) if src else None, full=full, ai=ai)
+        used = tokens_today(conn)
+    finally:
+        conn.rollback()
+        conn.close()
+    hw = hardware.profile()
+    return {"files": est.files, "minutes": {k: round(v, 1) for k, v in est.minutes.items() if ai or k != "ai"},
+            "total_minutes": round(est.total_minutes - (0 if ai else est.minutes.get("ai", 0)), 1),
+            "ai_tokens": est.ai_tokens if ai else 0, "tokens_used_today": used, "cap": config.AI_DAILY_TOKEN_CAP,
+            "hardware": hw.summary(), "profile": hw.name, "notes": hw.notes + [n for n in [hardware.battery_warning()] if n],
+            "lines": est.lines(ai=ai, cap=config.AI_DAILY_TOKEN_CAP)}
+
+
+class JobStart(BaseModel):
+    day: str
+    dropoff: str
+    pickup: str
+    ai: bool = True
+    full: bool = False
+
+
+@app.post("/api/job/start")
+def job_start(req: JobStart):
+    import os
+    import subprocess
+    import sys
+    from datetime import datetime
+    from . import progress
+    if not (DAY.match(req.day) and HHMM.match(req.dropoff) and HHMM.match(req.pickup)) or req.dropoff >= req.pickup:
+        raise HTTPException(400, "give the day as YYYY-MM-DD and times as HH:MM, drop-off before pickup")
+    with _start_lock:
+        if progress.read().get("status") == "running":
+            raise HTTPException(409, "a run is already in progress")
+        return _spawn(req)
+
+
+def _spawn(req) -> dict:
+    import os
+    import subprocess
+    import sys
+    from datetime import datetime
+    from . import progress
+    progress.LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log = progress.LOG_DIR / f"run-{datetime.now():%Y%m%d-%H%M%S-%f}.log"
+    cmd = [sys.executable, "-u", "-m", "kidberry.daily", "--progress", "--yes", "--day", req.day,
+           "--hours", f"{req.dropoff}-{req.pickup}"] + (["--no-ai"] if not req.ai else []) + (["--full"] if req.full else [])
+    env = {**os.environ, "KIDBERRY_LOG": str(log), "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
+    flags = (subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP) if sys.platform == "win32" else 0
+    with open(log, "wb") as out:
+        proc = subprocess.Popen(cmd, cwd=config.ROOT, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                env=env, creationflags=flags, start_new_session=sys.platform != "win32")
+    progress.starting(proc.pid, {"day": req.day, "hours": f"{req.dropoff}-{req.pickup}", "ai": req.ai, "full": req.full},
+                      str(log))
+    return {"started": True, "log": log.name}
+
+
+@app.post("/api/job/cancel")
+def job_cancel():
+    """Stop the run and everything it started. Transcription continues from its last checkpoint next time."""
+    import psutil
+    from . import progress
+    run = progress._read(progress.RUN_FILE)
+    pid = run.get("pid")
+    if not pid or progress.read().get("status") != "running":
+        return {"stopped": False}
+    try:
+        parent = psutil.Process(pid)
+        procs = parent.children(recursive=True) + [parent]
+        for p in procs:
+            p.kill()
+        psutil.wait_procs(procs, timeout=10)
+    except psutil.NoSuchProcess:
+        pass
+    run["finished"] = __import__("datetime").datetime.now().isoformat(timespec="seconds")
+    run["error"] = "Stopped by you. Continue to pick up where it stopped."
+    run["cancelled"] = True
+    progress._write(progress.RUN_FILE, run)
+    return {"stopped": True}
+
+
 if __name__ == "__main__":
     import uvicorn
     print(f"Kidberry UI: http://{config.HOST}:{config.PORT}")

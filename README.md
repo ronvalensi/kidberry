@@ -48,15 +48,24 @@ Only the models these need are downloaded and loaded:
 `ui_language` (`"en"` or `"he"`) is the language other languages are translated into. Hebrew lines are never
 translated. `language_notes` can give the AI a hint per language, e.g. `{"es": "Rioplatense"}`.
 
-## Daily use: one command
+## Daily use
 
+### From the page
+Start the page (`.\.venv\Scripts\python -m kidberry.server`, then open http://127.0.0.1:8000), plug in the recorder and
+click **⬇ Import & process**. Pick the day and the drop-off and pickup times, choose whether to run the AI review, and
+check the estimate (time, finish time, AI tokens) before you press **Start**. A progress bar shows the step, the overall
+percentage and the time left; it keeps going if you close the browser tab. **Stop** halts it, and **Continue** picks up
+where it stopped. Recordings are never deleted from the recorder from the page.
+
+### From the terminal
 Plug in the recorder, then:
 ```powershell
 .\.venv\Scripts\python -m kidberry.daily --hours 08:30-15:30
 ```
 It copies new recordings from the recorder (checksum-verified; asks before deleting them from the recorder),
-sets the kindergarten hours, transcribes, detects sounds, translates other languages, runs keyword flags and the smart AI
-review, and prints the day's summary and patterns. `--no-ai` skips the AI, `--full` reviews every line,
+sets the kindergarten hours, shows an estimate and asks before starting (`--yes` skips the question), transcribes,
+detects sounds, translates other languages, runs keyword flags and the smart AI review, and prints the day's summary and
+patterns. `python -m kidberry.estimate` shows the estimate alone. `--no-ai` skips the AI, `--full` reviews every line,
 `--day YYYY-MM-DD` picks the day. Then open http://127.0.0.1:8000 (start it with `python -m kidberry.server`)
 and **📅 Days overview** for patterns across days.
 

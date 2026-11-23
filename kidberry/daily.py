@@ -55,26 +55,36 @@ def ask(question: str) -> str:
 
 def copy_from_recorder(source: Path, clear: bool) -> list[Path]:
     """Copy new WAVs, verify each by checksum. Returns the newly copied files."""
+    from . import progress
     if not source.is_dir():
         print(f"Recorder not found at {source} - skipping copy.")
         return []
     RAW.mkdir(parents=True, exist_ok=True)
     new, verified = [], []
     wavs = {p.name.lower(): p for p in source.iterdir() if p.suffix.lower() == ".wav"}   # Windows: case-insensitive
+    todo = [p for p in sorted(wavs.values(), key=lambda p: p.name)
+            if not ((RAW / p.name).exists() and (RAW / p.name).stat().st_size == p.stat().st_size)]
+    total = sum(p.stat().st_size for p in todo) or 1
+    done_bytes = 0
     for src in sorted(wavs.values(), key=lambda p: p.name):
         dst = RAW / src.name
-        if dst.exists() and dst.stat().st_size == src.stat().st_size:
+        if src not in todo:
             verified.append((src, dst))           # already copied earlier
             continue
-        print(f"  copying {src.name} ({src.stat().st_size / 1e6:.0f} MB)...", end="", flush=True)
+        size = src.stat().st_size
+        progress.step(done_bytes / total, f"copying {src.name}", force=True)
+        print(f"  copying {src.name} ({size / 1e6:.0f} MB)...", end="", flush=True)
         shutil.copy2(src, dst)
+        progress.step((done_bytes + 0.7 * size) / total, f"verifying {src.name}", force=True)
         if md5(src) != md5(dst):
             dst.unlink()
             print(" CHECKSUM MISMATCH - copy removed, original kept on the recorder")
             continue
         print(" verified")
+        done_bytes += size
         new.append(dst)
         verified.append((src, dst))
+    progress.step(1.0, "copied", force=True)
     if not new:
         print("  no new recordings on the recorder")
     if verified and (clear or ask(f"Delete {len(verified)} backed-up recording(s) from the recorder? [y/N] ").lower() == "y"):
@@ -92,6 +102,13 @@ def run(*args: str) -> int:
     return subprocess.call([sys.executable, "-m", *args], cwd=config.ROOT)
 
 
+class _NoRun:
+    """Stands in for progress.Run when nobody is watching (a run from the terminal)."""
+    def begin(self, key): pass
+    def set_minutes(self, key, minutes): pass
+    def finish(self, error=None): pass
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hours", help="drop-off and pickup, e.g. 08:34-15:37")
@@ -102,18 +119,48 @@ def main() -> None:
     ap.add_argument("--no-ai", action="store_true")
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--yes", action="store_true", help="start without asking after the estimate")
+    ap.add_argument("--progress", action="store_true", help="report progress for the review page")
     args = ap.parse_args()
 
+    from . import estimate, hardware, progress
+    conn = connect()
+    if args.day and args.hours:          # the page gives the day and its hours up front
+        run("kidberry.analyze", "--hours", args.day, args.hours)
+    source = Path(args.source) if args.source and not args.no_copy else None
+    if args.progress:
+        import os
+        os.environ["KIDBERRY_PROGRESS"] = "1"   # inherited by every step's process
+        est0 = estimate.estimate(conn, source, full=args.full, ai=not args.no_ai)
+        tracker = progress.Run({"copy": est0.minutes.get("copy", 0), "transcribe": est0.minutes["transcribe"],
+                                "sounds": est0.minutes["sounds"], "translate": 0.5,
+                                "ai": est0.minutes.get("ai", 0.3), "summary": 0.2},
+                               params={"day": args.day, "hours": args.hours, "ai": not args.no_ai, "full": args.full},
+                               log_path=os.environ.get("KIDBERRY_LOG"))
+    else:
+        tracker = _NoRun()
+    try:
+        _main(args, conn, source, tracker)
+        tracker.finish()
+    except SystemExit as e:
+        tracker.finish(None if e.code in (None, 0) else str(e.code))
+        raise
+    except BaseException as e:
+        tracker.finish(f"{type(e).__name__}: {e}")
+        raise
+
+
+def _main(args, conn, source, tracker) -> None:
+    from . import estimate, hardware
     new = []
     if not args.no_copy:
         say("1/7 Copy from recorder")
-        if args.source:
-            new = copy_from_recorder(Path(args.source), args.clear_recorder)
+        tracker.begin("copy")
+        if source:
+            new = copy_from_recorder(source, args.clear_recorder)
         else:
             print("No recorder folder set - add recorder.path to data/settings.json or pass --source.")
 
     # Which day(s) are we processing? The new recordings' days, or the given/latest day.
-    conn = connect()
     days = sorted({(started_at_from_name(p.name) or "")[:10] for p in new} - {""})
     if args.day:
         days = [args.day]
@@ -125,7 +172,7 @@ def main() -> None:
     say("2/7 Kindergarten hours")
     for day in days:
         have = conn.execute("SELECT dropoff, pickup FROM school_hours WHERE day=?", (day,)).fetchone()
-        span = args.hours if args.hours and day == days[-1] else None
+        span = args.hours if args.hours and day == days[-1] and not (args.day and have) else None
         if not span and not have:
             span = ask(f"Drop-off and pickup on {day}, e.g. 08:30-15:40 (Enter to skip): ")
         if span:
@@ -135,7 +182,6 @@ def main() -> None:
         else:
             print(f"{day}: no hours set - the whole recording will be transcribed and analyzed, incl. the drive and after pickup. "
                   f"Set later with: python -m kidberry.analyze --hours {day} HH:MM-HH:MM")
-    from . import estimate, hardware
     hw = hardware.profile()
     say("Estimate")
     print(f"Hardware: {hw.summary()}")
@@ -153,21 +199,28 @@ def main() -> None:
                       "continues on the next run.")
     else:
         print("Nothing new to transcribe; continuing with the remaining steps.")
+    for key in ("transcribe", "sounds", "ai"):
+        if key in est.minutes:
+            tracker.set_minutes(key, est.minutes[key])
     conn.close()
     if est.files and not args.yes and ask("Start? [Y/n] ").lower() in ("n", "no"):
         sys.exit("Not started. Run again when you are ready.")
     with hardware.keep_awake():
-        steps(days, args)
+        steps(days, args, tracker)
 
 
-def steps(days, args) -> None:
+def steps(days, args, tracker) -> None:
     say("3/7 Transcribe")
+    tracker.begin("transcribe")
     run("kidberry.transcribe", str(RAW))
     say("4/7 Sound detection")
+    tracker.begin("sounds")
     run("kidberry.sounds")
     say("5/7 Translate other languages (local)")
+    tracker.begin("translate")
     run("kidberry.translate")
 
+    tracker.begin("ai")
     for day in days:
         if args.no_ai:
             say(f"6/7 Keyword flags for {day} (AI review skipped)")
@@ -177,6 +230,7 @@ def steps(days, args) -> None:
             run("kidberry.analyze", "--day", day, *(["--full"] if args.full else []))
 
     say("7/7 Summary")
+    tracker.begin("summary")
     run("kidberry.days")
     print(f"\nReview it at http://{config.HOST}:{config.PORT}  (start the page with: python -m kidberry.server)")
 

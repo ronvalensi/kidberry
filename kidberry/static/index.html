@@ -104,11 +104,48 @@
   .hit.day { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 8px; cursor: default; }
   @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: 35vh 1fr; }
     .flag { grid-template-columns: 60px 1fr; } .flag .acts { grid-column: 2; justify-content: flex-start; } }
+  /* ---- import & progress */
+  .importbar { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .bigbtn { display: block; width: 100%; padding: 9px 12px; font-size: 14px; font-weight: 600; border-radius: 7px;
+    background: var(--accent); color: #fff; border-color: var(--accent); }
+  .bigbtn:disabled { opacity: .5; cursor: default; }
+  #job { margin-top: 10px; font-size: 12px; }
+  #job .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  #job .title { font-weight: 600; font-size: 13px; }
+  .bar { height: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; margin: 5px 0; }
+  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .6s; }
+  .bar.thin { height: 4px; } .bar.thin > div { background: var(--speech); }
+  #job.done .bar > div { background: var(--ok); } #job.error .bar > div, #job.stopped .bar > div { background: var(--sev3); }
+  #job .steps { color: var(--muted); margin: 4px 0; }
+  #job .steps b { color: var(--text); font-weight: 600; } #job .steps s { text-decoration: none; color: var(--ok); }
+  #job details { margin-top: 4px; } #job pre { white-space: pre-wrap; font-size: 11px; color: var(--muted); margin: 4px 0 0; }
+  #job .acts { margin-top: 6px; display: flex; gap: 6px; }
+  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+    width: min(460px, calc(100vw - 32px)); padding: 18px 20px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  dialog h3 { margin: 0 0 12px; font-size: 16px; }
+  .field { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+  .field label { width: 90px; color: var(--muted); }
+  .field input[type=date], .field input[type=time] { font: inherit; padding: 4px 6px; border: 1px solid var(--line);
+    border-radius: 5px; background: var(--bg); color: var(--text); }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
+  .note { color: var(--muted); font-size: 12px; }
+  .credit { background: var(--flag-soft); border-radius: 6px; padding: 6px 8px; font-size: 12px; margin: 4px 0 8px 24px; }
+  #estBox { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 12px;
+    white-space: pre-wrap; min-height: 48px; margin: 10px 0; }
+  .dlgacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .dlgacts button { padding: 6px 14px; font-size: 13px; }
+  .recstate { font-size: 12px; margin-bottom: 6px; }
+  .recstate.ok { color: var(--ok); } .recstate.no { color: var(--sev3); }
 </style>
 </head>
 <body>
 <aside>
   <h1>Kidberry</h1>
+  <div class="importbar">
+    <button class="bigbtn" id="importBtn">⬇ Import &amp; process</button>
+    <div id="job" hidden></div>
+  </div>
   <a href="/days" style="display:block;margin:-4px 0 10px;color:var(--accent);text-decoration:none">📅 Days overview &amp; patterns →</a>
   <div class="search-all"><input id="qAll" type="search" placeholder="Search all recordings…" dir="auto">
     <button id="nameBtn" title="Every line where his name, or something that sounds like it, is said">👦 Every time his name is said</button></div>
@@ -134,6 +171,22 @@
   <details id="flagsPanel" open hidden><summary id="flagsSummary"></summary><div id="flagsList"></div></details>
   <div id="transcript"><div class="empty">Transcribe recordings first, then pick one on the left.</div></div>
 </main>
+<dialog id="importDlg">
+  <h3>Import &amp; process a day</h3>
+  <div class="recstate" id="recState"></div>
+  <div class="field"><label for="jDay">Day</label><input type="date" id="jDay"></div>
+  <div class="field"><label for="jFrom">Drop-off</label><input type="time" id="jFrom">
+    <label for="jTo" style="width:auto">Pickup</label><input type="time" id="jTo"></div>
+  <div class="note">Only the kindergarten hours (plus 5 minutes either side) are processed.</div>
+  <div class="check"><input type="checkbox" id="jAi" checked><label for="jAi">AI review (corrects misheard words and
+    flags concerning moments)</label></div>
+  <div class="credit" id="creditNote">This uses your AI account's credits or plan limits. Only transcript text is sent,
+    never audio.</div>
+  <div class="check"><input type="checkbox" id="jFull"><label for="jFull">Review every line, not just around flags
+    <span class="note">(about 5x the tokens)</span></label></div>
+  <div id="estBox">Estimating…</div>
+  <div class="dlgacts"><button id="jCancel">Cancel</button><button class="on" id="jStart">Start</button></div>
+</dialog>
 <script>
 const $ = s => document.querySelector(s);
 const audio = $('#audio');
@@ -378,6 +431,96 @@ loadRecs().then(() => {
   const m = location.hash.match(/r=(\d+)/), t = location.hash.match(/t=(\d+)/);   // #r=3&t=8804 from the Days page
   if (m && recs.some(r => r.id === +m[1])) openRec(+m[1], t ? +t[1] : undefined);
 });
+
+// ---------------------------------------------------------------- import & progress
+let jobTimer = null, lastJobStatus = null;
+const minutes = m => m == null ? '' : m < 1 ? 'under a minute' : m < 90 ? `${Math.round(m)} min` : `${(m / 60).toFixed(1)} hours`;
+async function loadJob() {
+  const j = await (await fetch('/api/job')).json();
+  const box = $('#job');
+  box.className = j.status;
+  box.hidden = j.status === 'idle';
+  $('#importBtn').disabled = j.status === 'running';
+  if (j.status !== 'idle') {
+    const stepList = j.steps.map(s => j.done.includes(s.key) ? `<s>✓ ${s.label}</s>`
+      : s.key === j.step && j.status === 'running' ? `<b>${s.label}</b>` : s.label).join(' · ');
+    const head = { running: 'Processing…', done: 'Done', error: 'Stopped with an error', stopped: 'Stopped' }[j.status];
+    const when = j.status === 'running' ? (j.left_min != null ? `about ${minutes(j.left_min)} left` : '')
+      : `took ${minutes(j.elapsed_min)}`;
+    box.innerHTML = `<div class="row"><span class="title">${head}${j.params?.day ? ' · ' + esc(j.params.day) : ''}</span>
+        <span>${Math.round(j.pct * 100)}%</span></div>
+      <div class="bar"><div style="width:${(j.status === 'done' ? 1 : j.pct) * 100}%"></div></div>
+      ${j.status === 'running' ? `<div class="row"><span>${esc(j.step_label || '')}${j.message ? ': ' + esc(j.message) : ''}</span>
+        <span>${Math.round(j.step_pct * 100)}%</span></div><div class="bar thin"><div style="width:${j.step_pct * 100}%"></div></div>` : ''}
+      <div class="row"><span class="steps">${stepList}</span></div>
+      <div class="row"><span class="note">${esc(when)}</span></div>
+      ${j.error ? `<div style="color:var(--sev3)">${esc(j.error)}</div>` : ''}
+      ${j.log?.length ? `<details><summary class="note">Details</summary><pre>${esc(j.log.join('\n'))}</pre></details>` : ''}
+      <div class="acts">${j.status === 'running' ? '<button id="jobStop">Stop</button>'
+        : j.status === 'stopped' || j.status === 'error' ? '<button id="jobResume">Continue</button><button id="jobHide">Hide</button>'
+        : '<button id="jobHide">Hide</button>'}</div>`;
+    $('#jobStop')?.addEventListener('click', async () => {
+      if (!confirm('Stop processing? Transcription continues where it stopped when you start again.')) return;
+      await fetch('/api/job/cancel', { method: 'POST' }); loadJob();
+    });
+    $('#jobResume')?.addEventListener('click', () => startJob(j.params));
+    $('#jobHide')?.addEventListener('click', () => { box.hidden = true; });
+  }
+  if (lastJobStatus === 'running' && j.status !== 'running') loadRecs();   // new results are in
+  lastJobStatus = j.status;
+  clearTimeout(jobTimer);
+  jobTimer = setTimeout(loadJob, j.status === 'running' ? 2000 : 15000);
+}
+
+async function startJob(params) {
+  const r = await fetch('/api/job/start', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ day: params.day, dropoff: params.dropoff || params.hours?.split('-')[0],
+      pickup: params.pickup || params.hours?.split('-')[1], ai: params.ai, full: params.full }) });
+  if (!r.ok) { alert((await r.json()).detail || 'Could not start'); return; }
+  lastJobStatus = 'running'; loadJob();
+}
+
+let estTimer;
+function jobParams() {
+  return { day: $('#jDay').value, dropoff: $('#jFrom').value, pickup: $('#jTo').value,
+           ai: $('#jAi').checked, full: $('#jFull').checked && $('#jAi').checked };
+}
+async function refreshEstimate() {
+  const p = jobParams();
+  $('#creditNote').hidden = !p.ai; $('#jFull').disabled = !p.ai;
+  if (!p.day || !p.dropoff || !p.pickup || p.dropoff >= p.pickup) {
+    $('#estBox').textContent = 'Set the day, and a drop-off time before the pickup time.'; $('#jStart').disabled = true; return;
+  }
+  $('#estBox').textContent = 'Estimating…';
+  const r = await fetch('/api/job/estimate?' + new URLSearchParams(p));
+  if (!r.ok) { $('#estBox').textContent = (await r.json()).detail; $('#jStart').disabled = true; return; }
+  const e = await r.json();
+  $('#jStart').disabled = false;
+  if (!e.files.length) { $('#estBox').textContent = 'Nothing new to transcribe. Starting will re-run flags'
+    + (p.ai ? ' and the AI review' : '') + ' for this day.'; return; }
+  let txt = e.lines.join('\n');
+  if (p.ai && e.ai_tokens > e.cap - e.tokens_used_today)
+    txt += `\n! Only ${(e.cap - e.tokens_used_today).toLocaleString()} tokens are left under today's cap: the AI review will stop there and continue on the next run.`;
+  if (e.notes.length) txt += '\n! ' + e.notes.join('\n! ');
+  $('#estBox').textContent = txt;
+}
+$('#importBtn').onclick = async () => {
+  const s = await (await fetch('/api/job/setup')).json();
+  const rs = $('#recState');
+  if (!s.recorder.path) { rs.className = 'recstate no'; rs.textContent = 'No recorder folder is set (recorder.path in settings).'; }
+  else if (!s.recorder.connected) { rs.className = 'recstate no'; rs.textContent = `Recorder not found at ${s.recorder.path}. Plug it in, or continue to process what is already copied.`; }
+  else { rs.className = 'recstate ok'; rs.textContent = s.recorder.new.length
+    ? `Recorder connected: ${s.recorder.new.length} new recording(s)${s.recorder.days.length ? ' from ' + s.recorder.days.join(', ') : ''}.`
+    : 'Recorder connected: no new recordings on it.'; }
+  $('#jDay').value = s.day; $('#jFrom').value = s.dropoff; $('#jTo').value = s.pickup;
+  $('#importDlg').showModal();
+  refreshEstimate();
+};
+['#jDay', '#jFrom', '#jTo', '#jAi', '#jFull'].forEach(id => $(id).addEventListener('change', () => {
+  clearTimeout(estTimer); estTimer = setTimeout(refreshEstimate, 250); }));
+$('#jCancel').onclick = () => $('#importDlg').close();
+$('#jStart').onclick = () => { const p = jobParams(); $('#importDlg').close(); startJob(p); };
+loadJob();
 </script>
 </body>
 </html>

@@ -14,7 +14,7 @@ transcript **text** sent to the AI provider you choose.
 
 ## Install
 
-1. Download [`Install-Kidberry.cmd`](https://github.com/ronvalensi/kidberry/raw/main/install/Install-Kidberry.cmd)
+1. Download [`Install-Kidberry.cmd`](https://github.com/ronvalensi/kidberry/releases/latest/download/Install-Kidberry.cmd)
    and double-click it. No admin rights are needed.
 2. Windows may warn about a file from the internet: choose **Run** (or **More info → Run anyway**). The
    installer is a short script you can read first: [`install/install.ps1`](install/install.ps1).

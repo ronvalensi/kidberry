@@ -17,6 +17,10 @@ Start-Sleep -Seconds 1
 foreach ($dir in @([Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("Programs"))) {
     Remove-Item (Join-Path $dir "Kidberry.lnk") -Force -ErrorAction SilentlyContinue
 }
+try {
+    $reg = (Get-ItemProperty "HKCU:\Software\Kidberry" -Name InstallDir -ErrorAction Stop).InstallDir
+    if ($reg -eq $InstallDir) { Remove-Item "HKCU:\Software\Kidberry" -Recurse -Force }
+} catch { }
 foreach ($name in "app", "venv", "python", "tools", "cache", "tmp") {
     Remove-Item (Join-Path $InstallDir $name) -Recurse -Force -ErrorAction SilentlyContinue
 }

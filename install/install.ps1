@@ -9,7 +9,7 @@
 #   venv\        Python packages          python\  a private Python 3.11 (from uv)
 #   tools\       uv and ffmpeg            data\, recordings\  the family's data: never touched by updates
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\Kidberry",
+    [string]$InstallDir = "",                     # empty: ask which drive (or reuse the existing install)
     [string]$Source = "",
     [string]$Ref = "main",
     [switch]$Cpu,
@@ -37,7 +37,7 @@ function Download($url, $to) {
 
 Write-Host ""
 Write-Host "  Kidberry installer" -ForegroundColor Magenta
-Write-Host "  Installs into $InstallDir (only for this Windows user)."
+Write-Host "  Installs only for this Windows user; no admin rights needed."
 
 # ---------------------------------------------------------------- 1. this PC
 Step 1 "Checking this PC"
@@ -58,10 +58,50 @@ $device = if ($gpu) { "gpu" } else { "cpu" }
 if ($gpu) { Info "NVIDIA GPU: $gpu - installing the fast GPU version." }
 else { Info "No suitable NVIDIA GPU - installing the CPU version (slower: let a day run in the background)." }
 $needGB = if ($gpu) { 10 } else { 6 }
-$drive = Get-PSDrive -Name ($InstallDir.Substring(0, 1))
-$freeGB = [math]::Round($drive.Free / 1GB, 1)
-Info "Free space on $($drive.Name): $freeGB GB (needs about $needGB GB with the speech models)."
+function FreeGB($path) {
+    $d = Get-PSDrive -Name $path.Substring(0, 1) -ErrorAction SilentlyContinue
+    if ($d) { [math]::Round($d.Free / 1GB, 1) } else { 0 }
+}
+function DirFor($letter) { if ($letter -eq $env:LOCALAPPDATA.Substring(0, 1)) { "$env:LOCALAPPDATA\Kidberry" } else { "${letter}:\Kidberry" } }
+
+# Where to install: the -InstallDir given, the folder of an existing install (an update), or the drive the user picks.
+$update = $false
+if (-not $InstallDir) {
+    $prev = $null
+    try { $prev = (Get-ItemProperty "HKCU:\Software\Kidberry" -Name InstallDir -ErrorAction Stop).InstallDir } catch { }
+    if (-not $prev -and (Test-Path "$env:LOCALAPPDATA\Kidberry\install.json")) { $prev = "$env:LOCALAPPDATA\Kidberry" }
+    if ($prev -and (Test-Path (Join-Path $prev "install.json"))) {
+        $InstallDir = $prev; $update = $true
+        Info "Kidberry is already installed in $prev - updating it (your data is kept)."
+    } else {
+        $drives = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Sort-Object DeviceID | ForEach-Object {
+            [pscustomobject]@{ Letter = $_.DeviceID.Substring(0, 1); Free = [math]::Round($_.FreeSpace / 1GB, 1) } })
+        $ok = @($drives | Where-Object { $_.Free -ge $needGB })
+        if (-not $ok) { Fail "No drive has enough free space: about $needGB GB is needed." }
+        $default = if ($ok | Where-Object { $_.Letter -eq $env:LOCALAPPDATA.Substring(0, 1) }) { $env:LOCALAPPDATA.Substring(0, 1) }
+                   else { ($ok | Sort-Object Free -Descending | Select-Object -First 1).Letter }
+        Write-Host ""
+        Write-Host "      Which drive should Kidberry go on? It needs about $needGB GB, and your recordings add up over time."
+        foreach ($d in $drives) {
+            $note = if ($d.Free -lt $needGB) { "  (not enough space)" } elseif ($d.Letter -eq $default) { "  <- default" } else { "" }
+            Write-Host ("        {0}:  {1,7} GB free   {2}{3}" -f $d.Letter, $d.Free, (DirFor $d.Letter), $note)
+        }
+        while (-not $InstallDir) {
+            $answer = (Read-Host "      Type a drive letter, or press Enter for $default").Trim().TrimEnd(":", "\")
+            if (-not $answer) { $answer = $default }
+            $pick = $ok | Where-Object { $_.Letter -eq $answer.ToUpper() }
+            if ($pick) { $InstallDir = DirFor $pick.Letter }
+            else { Write-Host "      '$answer' is not one of the drives with enough space." -ForegroundColor Yellow }
+        }
+    }
+}
+$InstallDir = [IO.Path]::GetFullPath($InstallDir).TrimEnd("\")
+$freeGB = FreeGB $InstallDir
+if ($update -or (Test-Path (Join-Path $InstallDir "venv"))) { $needGB = 2 }   # most of it is already there
+Info "Installing into $InstallDir ($freeGB GB free)."
 if ($freeGB -lt $needGB) { Fail "Not enough free disk space: $freeGB GB free, about $needGB GB needed." }
+try { New-Item -ItemType Directory -Force -Path $InstallDir -ErrorAction Stop | Out-Null }
+catch { Fail "Cannot create $InstallDir ($($_.Exception.Message)). Pick another drive." }
 
 $tools = Join-Path $InstallDir "tools"
 $tmp = Join-Path $InstallDir "tmp"
@@ -155,6 +195,9 @@ Copy-Item "$app\install\uninstall.ps1" "$InstallDir\uninstall.ps1" -Force
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1"
 pause
 "@ | Set-Content "$InstallDir\Uninstall Kidberry.cmd" -Encoding ascii
+# Remember the folder, so running the installer again updates this copy instead of asking for a drive.
+New-Item -Path "HKCU:\Software\Kidberry" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Kidberry" -Name InstallDir -Value $InstallDir
 try { & $uv cache clean --quiet } catch { }   # frees the downloaded packages (a few GB); best effort
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 Info "Settings and data will be kept in $InstallDir\data"

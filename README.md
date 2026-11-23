@@ -278,6 +278,9 @@ send it yourself, if you want to.
 
 ## Credits & licenses
 
+Bundled: the [Rubik](https://github.com/googlefonts/rubik) font by the Rubik Project Authors (SIL Open Font License 1.1,
+`kidberry/static/fonts/OFL.txt`).
+
 Kidberry downloads these models from Hugging Face on first use; they are not bundled.
 - Hebrew speech recognition: [ivrit-ai/whisper-large-v3-turbo-ct2](https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ct2) by ivrit.ai (Apache-2.0)
 - Language detection + other languages: [Whisper large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) by OpenAI, CTranslate2 conversion by Systran (MIT);

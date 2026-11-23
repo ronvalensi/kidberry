@@ -4,216 +4,229 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kidberry</title>
+<link rel="stylesheet" href="/static/kidberry.css">
 <style>
-  :root {
-    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7385; --line: #e3e6ec;
-    --accent: #2f6fdb; --accent-soft: #e6eefc; --speech: #9db7e6; --hit: #fff2b3;
-    --sev1: #c9a227; --sev3: #e07b1f; --sev5: #d6453d; --flag-soft: #fdecea; --ok: #2e8b57;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #14171d; --panel: #1c2028; --text: #e6e9ef; --muted: #8b93a5; --line: #2c323d;
-      --accent: #6b9cff; --accent-soft: #24304a; --speech: #3e5a8c; --hit: #5a4b10;
-      --sev1: #d8b440; --sev3: #f0913a; --sev5: #ff6b61; --flag-soft: #3a2224; --ok: #4fc283; }
-  }
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text);
-    display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
-  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text);
-    border-radius: 5px; padding: 2px 8px; font-size: 12px; }
-  button:hover { border-color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
-  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-  aside { border-inline-end: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
-  .top { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-  .top h1 { font-size: 18px; margin: 0; flex: 1; }
-  .search-all { padding: 10px 16px; border-bottom: 1px solid var(--line); }
-  input[type=search], input[type=text], input[type=password], input[type=email], input[type=number] { width: 100%;
-    padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
-  #recs, #globalResults { overflow-y: auto; flex: 1; }
-  .rec { padding: 10px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
-  .rec:hover { background: var(--accent-soft); }
-  .rec.active { background: var(--accent-soft); border-inline-start: 3px solid var(--accent); padding-inline-start: 13px; }
-  .rec .name { font-weight: 600; word-break: break-all; }
-  [dir=rtl] .rec .name, [dir=rtl] #title { direction: ltr; text-align: right; }   /* file names read left to right */
-  .rec .meta { color: var(--muted); font-size: 12px; }
-  .badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--line); }
-  .sev { display: inline-block; min-width: 20px; text-align: center; font-size: 11px; font-weight: 700; color: #fff;
-    border-radius: 8px; padding: 0 6px; }
-  .s1, .s2 { background: var(--sev1); } .s3, .s4 { background: var(--sev3); } .s5 { background: var(--sev5); }
-  .hit { padding: 8px 16px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px; }
-  .hit:hover { background: var(--accent-soft); }
-  .hit .meta { color: var(--muted); font-size: 11px; }
-  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  .player { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 20px; }
-  .player h2 { margin: 0 0 8px; font-size: 15px; word-break: break-all; }
-  audio { width: 100%; direction: ltr; }
-  #timeline { position: relative; height: 34px; margin-top: 8px; background: var(--bg); border: 1px solid var(--line);
-    border-radius: 4px; cursor: pointer; overflow: hidden; direction: ltr; }
-  #timeline .sp { position: absolute; top: 10px; bottom: 10px; background: var(--speech); }
-  #timeline .fl { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; }
-  #timeline .ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+  body { display: grid; grid-template-columns: 320px 1fr; height: 100vh; overflow: hidden; }
+  /* ---- sidebar */
+  aside { background: var(--panel); border-inline-end: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .top { display: flex; align-items: center; gap: 6px; padding: 16px 16px 12px; }
+  .top .brand { flex: 1; }
+  .importbar { padding: 4px 16px 12px; }
+  .bigbtn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px 14px; font-size: 14.5px;
+    font-weight: 600; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-text);
+    border: none; box-shadow: 0 4px 14px rgba(106, 75, 196, .3); }
+  .bigbtn:hover:not(:disabled) { filter: brightness(1.06); }
+  .linkbtn { background: none; border: none; padding: 8px 2px 0; color: var(--muted); font-size: 11.5px; text-decoration: underline;
+    text-underline-offset: 2px; }
+  .navrow { display: flex; gap: 6px; padding: 0 16px 10px; }
+  .navrow > * { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; font-size: 13px;
+    border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none; }
+  .navrow > *:hover { border-color: var(--accent-2); }
+  .navrow > .cur { background: var(--accent-soft); border-color: var(--accent-2); }
+  .search-all { padding: 0 16px 12px; border-bottom: 1px solid var(--line); }
+  #nameBtn { display: block; width: 100%; margin-top: 8px; padding: 8px 12px; text-align: start; background: var(--accent-soft);
+    border-color: transparent; color: var(--text); }
+  #recs, #globalResults { overflow-y: auto; flex: 1; padding: 6px 10px 20px; }
+  .dayhead { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 8px 4px; font-size: 12px;
+    font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .rec { padding: 9px 12px; border-radius: 12px; cursor: pointer; margin: 2px 0; border: 1px solid transparent; }
+  .rec:hover { background: var(--panel-2); }
+  .rec.active { background: var(--accent-soft); border-color: var(--accent-2); }
+  .rec .name { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .rec .meta { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+  .hit { padding: 9px 12px; border-radius: 12px; cursor: pointer; font-size: 13px; margin: 2px 0; }
+  .hit:hover { background: var(--panel-2); }
+  .hit .meta { color: var(--muted); font-size: 11.5px; }
+  .hit.day { color: var(--muted); font-size: 12px; font-weight: 600; cursor: default; margin-top: 8px; }
+  .hit.day:hover { background: none; }
+  /* ---- main */
+  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  #viewer { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 16px 20px 0; gap: 12px; }
+  .player { padding: 16px 20px; }
+  .ptitle { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .ptitle h2 { margin: 0; font-size: 18px; }
+  .ptitle .fname { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; direction: ltr; unicode-bidi: isolate; }
+  audio { width: 100%; height: 40px; direction: ltr; }
+  #timeline { position: relative; height: 38px; margin-top: 10px; background: var(--panel-2); border-radius: 10px; cursor: pointer;
+    overflow: hidden; direction: ltr; }
+  #timeline .sp { position: absolute; top: 12px; bottom: 12px; background: var(--speech); border-radius: 2px; }
+  #timeline .fl { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; border-radius: 2px; }
+  #timeline .ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); box-shadow: 0 0 0 2px rgba(106,75,196,.25); }
+  #timeline .snd { position: absolute; bottom: 0; height: 7px; min-width: 2px; opacity: .85; }
+  #timeline .snd.crying { background: #e0a030; } #timeline .snd.screaming { background: #d0402a; }
+  #timeline .snd.yelling { background: #b03090; } #timeline .snd.impact { background: #777; }
+  #timeline .nmk { position: absolute; top: 0; width: 2px; height: 8px; background: var(--accent); }
+  .tools { display: flex; gap: 6px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .tools input[type=search] { max-width: 240px; padding: 5px 12px; border-radius: 999px; margin-inline-end: 4px; }
+  .hint { color: var(--muted); font-size: 11.5px; margin-top: 8px; }
+  /* flags */
+  #flagsPanel { max-height: 36vh; overflow-y: auto; padding: 0; }
+  #flagsPanel summary { padding: 12px 18px; cursor: pointer; font-weight: 600; position: sticky; top: 0; background: var(--panel);
+    z-index: 1; border-radius: var(--r) var(--r) 0 0; list-style: none; display: flex; gap: 8px; align-items: center; }
+  #flagsPanel summary::-webkit-details-marker { display: none; }
+  #flagsPanel summary::before { content: "▾"; color: var(--muted); }
+  #flagsPanel:not([open]) summary::before { content: "▸"; }
+  .flag { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--line);
+    align-items: start; border-inline-start: 4px solid var(--sev1); }
+  .flag.sv3, .flag.sv4 { border-inline-start-color: var(--sev3); } .flag.sv5 { border-inline-start-color: var(--sev5); }
+  .flag:hover { background: var(--panel-2); }
+  .flag.false_alarm, .flag.ok { opacity: .5; border-inline-start-color: var(--line); }
+  .flag .ficon { width: 36px; height: 36px; border-radius: 12px; background: var(--panel-2); display: grid; place-items: center; font-size: 19px; }
+  .flag .fhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .flag .ts { color: var(--accent); cursor: pointer; font-variant-numeric: tabular-nums; font-size: 12.5px; font-weight: 600;
+    background: var(--accent-soft); border-radius: 999px; padding: 1px 9px; }
+  .flag .ts:hover { background: var(--accent); color: var(--accent-text); }
+  .flag .cat { font-weight: 600; font-size: 14px; }
+  .flag .src { color: var(--muted); font-size: 11.5px; }
+  .flag .reason { font-size: 13.5px; margin-top: 3px; }
+  .flag .quote { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .flag .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .flag .acts button { border-radius: 999px; font-size: 12px; padding: 4px 11px; }
+  .flag .acts .concerning.on { background: var(--sev5); border-color: var(--sev5); color: #fff; }
+  .flag .acts .ok.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .flag .acts .false_alarm.on { background: var(--muted); border-color: var(--muted); color: #fff; }
   .said { margin-top: 6px; font-size: 13px; }
-  .said summary { cursor: pointer; color: var(--accent); font-size: 12px; }
-  .said.empty-said { color: var(--muted); font-size: 12px; }
-  .said-line { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+  .said summary { cursor: pointer; color: var(--accent); font-size: 12.5px; }
+  .said.empty-said { color: var(--muted); font-size: 12.5px; }
+  .said-line { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
   .said-line:hover { background: var(--accent-soft); }
   .said-line.during { border-inline-start: 3px solid #e0a030; padding-inline-start: 6px; }
   .said-line .ts { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; padding-top: 2px; }
   .said-line .tag { color: var(--muted); font-size: 10px; text-transform: uppercase; white-space: nowrap; }
-  #timeline .snd { position: absolute; bottom: 0; height: 7px; min-width: 2px; opacity: .85; }
-  #timeline .snd.crying { background: #e0a030; } #timeline .snd.screaming { background: #d0402a; }
-  #timeline .snd.yelling { background: #b03090; } #timeline .snd.impact { background: #555; }
-  .tools { display: flex; gap: 12px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
-  .tools input[type=search] { max-width: 280px; }
-  .tools label { color: var(--muted); font-size: 13px; }
-  .hint { color: var(--muted); font-size: 12px; margin-inline-start: auto; }
-  #flagsPanel { background: var(--panel); border-bottom: 1px solid var(--line); max-height: 34vh; overflow-y: auto; }
-  #flagsPanel summary { padding: 8px 20px; cursor: pointer; font-weight: 600; position: sticky; top: 0; background: var(--panel); }
-  .flag { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 7px 20px; border-top: 1px solid var(--line); align-items: start; }
-  .flag:hover { background: var(--accent-soft); }
-  .flag.false_alarm, .flag.ok { opacity: .45; }
-  .flag .acts .ok.on { background: var(--accent); border-color: var(--accent); }
-  .revbtn { margin-top: 6px; }
-  .revbadge { color: var(--ok); font-size: 11px; font-weight: 600; }
-  #toast { position: fixed; bottom: 18px; inset-inline-start: 50%; transform: translateX(-50%); background: var(--text);
-    color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; display: flex; gap: 12px; align-items: center;
-    box-shadow: 0 4px 14px rgba(0,0,0,.25); z-index: 20; }
-  [dir=rtl] #toast { transform: translateX(50%); }
-  #toast button { background: none; border: none; color: var(--accent-soft); text-decoration: underline; cursor: pointer; font: inherit; }
-
-  .flag .ts { color: var(--accent); cursor: pointer; font-variant-numeric: tabular-nums; font-size: 12px; }
-  .flag .cat { font-weight: 600; font-size: 13px; }
-  .flag .src { color: var(--muted); font-size: 11px; margin-inline-start: 6px; }
-  .flag .reason { font-size: 13px; }
-  .flag .quote { font-size: 13px; color: var(--muted); }
-  .flag .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-  .flag .acts .concerning.on { background: var(--sev5); border-color: var(--sev5); }
-  .flag .acts .false_alarm.on { background: var(--ok); border-color: var(--ok); }
-  #transcript { overflow-y: auto; flex: 1; padding: 8px 20px 40px; }
-  .seg { display: grid; grid-template-columns: 76px 1fr; gap: 10px; padding: 5px 8px; border-radius: 5px; cursor: pointer;
-    border-inline-start: 3px solid transparent; }
-  .seg:hover { background: var(--accent-soft); }
-  .seg.now { background: var(--accent-soft); outline: 1px solid var(--accent); }
-  .seg.target { outline: 2px solid var(--sev3); outline-offset: -1px; }
+  /* transcript */
+  #transcript { overflow-y: auto; flex: 1; padding: 6px 0 40px; }
+  .seg { display: grid; grid-template-columns: 74px 1fr; gap: 12px; padding: 7px 12px; border-radius: 12px; cursor: pointer;
+    border-inline-start: 3px solid transparent; margin: 1px 0; }
+  .seg:hover { background: var(--panel); box-shadow: var(--shadow); }
+  .seg.now { background: var(--accent-soft); }
+  .seg.target { outline: 2px solid var(--sev3); outline-offset: -2px; }
   .seg.flagged { border-inline-start-color: var(--sev5); background: var(--flag-soft); }
+  .seg.named { border-inline-start-color: var(--accent); }
   .seg.lowconf .main { opacity: .55; }
   .seg.filtered .main { opacity: .4; text-decoration: line-through; }
-  .seg.outside { opacity: .5; }
+  .seg.outside { opacity: .45; }
   .seg .ts { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 12px; padding-top: 2px; }
   .seg .clock { display: block; color: var(--muted); font-size: 11px; }
+  .seg .main { font-size: 14.5px; }
   .seg .heard { display: block; color: var(--muted); font-size: 12px; }
-  .en { display: block; color: var(--accent); font-size: 12px; font-style: italic; text-align: start; }
+  .en { display: block; color: var(--accent); font-size: 12.5px; font-style: italic; text-align: start; }
   .seg .tag { color: var(--muted); font-size: 10px; text-transform: uppercase; margin-inline-start: 6px; }
   .seg .why { color: var(--sev5); font-size: 10px; margin-inline-start: 6px; }
-  .seg mark { background: var(--hit); color: inherit; }
-  .empty { color: var(--muted); padding: 40px; text-align: center; }
-  .seg.named { border-inline-start-color: var(--accent); }
+  .seg mark { background: var(--hit); color: inherit; border-radius: 3px; }
   .namebadge { font-size: 11px; font-weight: 600; color: var(--accent); margin-inline-start: 6px; white-space: nowrap; }
   .namebadge.maybe { color: var(--muted); font-weight: 400; }
-  mark.nm { background: var(--accent-soft); outline: 1px solid var(--accent); border-radius: 3px; }
-  #timeline .nmk { position: absolute; top: 0; width: 2px; height: 7px; background: var(--accent); }
-  #nameBtn { display: block; width: 100%; margin-top: 8px; padding: 7px 10px; text-align: start; cursor: pointer; }
-  .hit.day { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 8px; cursor: default; }
-  .navlink { display: block; padding: 8px 16px; color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--line); }
-  @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: 35vh 1fr; }
-    .flag { grid-template-columns: 60px 1fr; } .flag .acts { grid-column: 2; justify-content: flex-start; } }
+  mark.nm { background: var(--accent-soft); outline: 1px solid var(--accent-2); border-radius: 4px; }
+  .empty { color: var(--muted); padding: 40px; text-align: center; }
+  /* ---- home */
+  #home { overflow-y: auto; flex: 1; padding: 36px 40px 60px; }
+  .hero h2 { font-size: 28px; margin: 0 0 4px; }
+  .hero p { margin: 0; color: var(--muted); font-size: 15px; }
+  .daycards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 26px; }
+  .daycard { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .daycard .dtop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .daycard .dname { font-size: 17px; font-weight: 600; }
+  .daycard .dhours { color: var(--muted); font-size: 12.5px; }
+  .daycard .stats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stat { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+  .stat.open { background: var(--flag-soft); color: var(--sev3); font-weight: 600; }
+  .stat.done { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+  .daycard .dacts { display: flex; gap: 8px; margin-top: auto; padding-top: 4px; }
+  .daycard .dacts button { flex: 1; }
+  .homesec { margin-top: 34px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .welcome { text-align: center; max-width: 460px; margin: 8vh auto 0; }
+  .welcome h2 { font-size: 26px; margin: 18px 0 8px; }
+  .welcome p { color: var(--muted); font-size: 15px; }
+  .welcome .bigbtn { width: auto; display: inline-flex; padding: 12px 26px; margin-top: 10px; }
   /* ---- import & progress */
-  .importbar { padding: 10px 16px; border-bottom: 1px solid var(--line); }
-  .bigbtn { display: block; width: 100%; padding: 9px 12px; font-size: 14px; font-weight: 600; border-radius: 7px;
-    background: var(--accent); color: #fff; border-color: var(--accent); }
-  #job { margin-top: 10px; font-size: 12px; }
+  #job { margin-top: 12px; font-size: 12.5px; padding: 12px; background: var(--panel-2); border-radius: 12px; }
   #job .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-  #job .title { font-weight: 600; font-size: 13px; }
-  .bar { height: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; margin: 5px 0; }
-  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .6s; }
+  #job .title { font-weight: 600; font-size: 13.5px; }
+  .bar { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 6px 0; }
+  .bar > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); width: 0; transition: width .6s; border-radius: 999px; }
   .bar.thin { height: 4px; } .bar.thin > div { background: var(--speech); }
   #job.done .bar > div { background: var(--ok); } #job.error .bar > div, #job.stopped .bar > div { background: var(--sev3); }
   #job .steps { color: var(--muted); margin: 4px 0; }
   #job .steps b { color: var(--text); font-weight: 600; } #job .steps s { text-decoration: none; color: var(--ok); }
   #job details { margin-top: 4px; } #job pre { white-space: pre-wrap; font-size: 11px; color: var(--muted); margin: 4px 0 0; direction: ltr; text-align: left; }
-  #job .acts { margin-top: 6px; display: flex; gap: 6px; }
-  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
-    width: min(460px, calc(100vw - 32px)); padding: 18px 20px; }
-  dialog::backdrop { background: rgba(0,0,0,.35); }
-  dialog h3 { margin: 0 0 12px; font-size: 16px; }
-  .field { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
-  .field label { width: 90px; color: var(--muted); }
-  .field input[type=date], .field input[type=time] { font: inherit; padding: 4px 6px; border: 1px solid var(--line);
-    border-radius: 5px; background: var(--bg); color: var(--text); }
-  .check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
-  .note { color: var(--muted); font-size: 12px; }
-  .credit { background: var(--flag-soft); border-radius: 6px; padding: 6px 8px; font-size: 12px; margin: 4px 0 8px; margin-inline-start: 24px; }
-  #estBox { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 12px;
-    min-height: 48px; margin: 10px 0; }
+  #job .acts { margin-top: 8px; display: flex; gap: 6px; }
+  .field { display: flex; gap: 10px; align-items: center; margin: 10px 0; }
+  .field label { width: 90px; color: var(--muted); flex: none; }
+  .field input[type=date], .field input[type=time] { width: auto; }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; }
+  .check input { margin-top: 4px; }
+  .credit { background: var(--accent-soft); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; margin: 4px 0 10px; margin-inline-start: 26px; }
+  #estBox { background: var(--panel-2); border-radius: 12px; padding: 12px 14px; font-size: 13px; min-height: 48px; margin: 12px 0; }
   #estBox .est { display: flex; justify-content: space-between; gap: 12px; padding-inline-start: 10px; }
-  #estBox .est.total { font-weight: 600; border-top: 1px solid var(--line); margin-top: 3px; padding-top: 3px; }
+  #estBox .est.total { font-weight: 600; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
   #estBox .warn { color: var(--sev3); margin-top: 4px; }
-  .dlgacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; align-items: center; }
-  .dlgacts button { padding: 6px 14px; font-size: 13px; }
-  .recstate { font-size: 12px; margin-bottom: 6px; }
-  .recstate.ok, .okmsg { color: var(--ok); } .recstate.no, .err { color: var(--sev3); }
-  .linkbtn { background: none; border: none; padding: 6px 0 0; color: var(--muted); font-size: 11px; cursor: pointer;
-    text-decoration: underline; }
+  .recstate { font-size: 12.5px; margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; background: var(--panel-2); }
+  .recstate.ok { color: var(--ok); background: var(--ok-soft); } .recstate.no { color: var(--sev3); background: var(--flag-soft); }
   #supportDlg { width: min(640px, calc(100vw - 32px)); }
-  #supportText { max-height: 50vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-    padding: 8px 10px; font-size: 11px; white-space: pre-wrap; direction: ltr; text-align: left; }
+  #supportText { max-height: 50vh; overflow: auto; background: var(--panel-2); border-radius: 12px; padding: 10px 12px; font-size: 11px;
+    white-space: pre-wrap; direction: ltr; text-align: left; }
   /* ---- settings and the setup wizard */
-  #setDlg { width: min(620px, calc(100vw - 32px)); }
-  #setTabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-  #setTabs button { padding: 4px 10px; }
-  #setDlg section { display: none; min-height: 260px; }
+  #setDlg { width: min(640px, calc(100vw - 32px)); }
+  #setTabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; background: var(--panel-2); border-radius: 12px; }
+  #setTabs button { padding: 5px 11px; border: none; background: transparent; border-radius: 9px; }
+  #setTabs button.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+  #setDlg section { display: none; min-height: 280px; }
   #setDlg section.show { display: block; }
-  #setDlg section > label, .lbl { display: block; margin: 10px 0 3px; font-size: 13px; color: var(--muted); }
-  .legal { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 12px; margin-top: 12px; }
+  #setDlg section > label, .lbl { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+  .legal { background: var(--panel-2); border-radius: 12px; padding: 12px 14px; font-size: 12.5px; margin-top: 16px; }
   .langpick { display: flex; gap: 6px; }
   .kid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; margin: 6px 0; }
-  .prov { display: block; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; cursor: pointer; }
+  .prov { display: block; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; margin: 8px 0; cursor: pointer; transition: all .15s; }
+  .prov:hover { border-color: var(--accent-2); }
   .prov:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
-  .prov .pl { font-weight: 600; } .prov .pd { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .prov .pl { font-weight: 600; } .prov .pd { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
   .prov .pd.warn { color: var(--sev3); }
-  #aiTestOut { white-space: pre-wrap; font-size: 11px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-    padding: 6px 8px; margin-top: 6px; max-height: 180px; overflow: auto; direction: auto; }
+  #aiTestOut { white-space: pre-wrap; font-size: 11px; background: var(--panel-2); border-radius: 10px; padding: 8px 10px; margin-top: 8px;
+    max-height: 180px; overflow: auto; }
   #setStep { margin-inline-end: auto; }
+  @media (max-width: 800px) { body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; height: auto; }
+    aside { max-height: 45vh; } #home { padding: 24px 16px; } #viewer { padding: 12px; }
+    .flag { grid-template-columns: 1fr; } .flag .ficon { display: none; } .flag .acts { justify-content: flex-start; } }
 </style>
 </head>
 <body>
 <aside>
   <div class="top">
-    <h1>Kidberry</h1>
-    <button id="langBtn" data-i18n="app.switch" data-i18n-title="app.switch_title"></button>
-    <button id="setBtn" data-i18n="nav.settings"></button>
+    <a class="brand" id="homeLink"><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 7c-1-3-4-4-6-3 2 1 3 2 4 4" fill="none" stroke="#3f9b6a" stroke-width="2" stroke-linecap="round"/><path d="M17 8c2-2 5-2 7-1-2 1-4 2-6 2" fill="#3f9b6a"/><circle cx="11" cy="16" r="6" fill="#7b5ad6"/><circle cx="21" cy="16" r="6" fill="#6a4bc4"/><circle cx="16" cy="23" r="6.5" fill="#8a6ee0"/><circle cx="9.5" cy="14.5" r="1.6" fill="#fff" opacity=".45"/><circle cx="14.5" cy="21" r="1.8" fill="#fff" opacity=".45"/></svg><b>Kidberry</b></a>
+    <button class="ghost iconbtn" id="langBtn" data-i18n="app.switch" data-i18n-title="app.switch_title"></button>
+    <button class="ghost iconbtn" id="setBtn" data-i18n-title="set.title">⚙</button>
   </div>
   <div class="importbar">
     <button class="bigbtn" id="importBtn" data-i18n="imp.button"></button>
     <div id="job" hidden></div>
     <button class="linkbtn" id="supportBtn" data-i18n="sup.link" data-i18n-title="sup.link_title"></button>
   </div>
-  <a href="/days" class="navlink" data-i18n="nav.days"></a>
+  <div class="navrow"><button id="homeBtn" class="cur" data-i18n="nav.home"></button><a href="/days" data-i18n="nav.days_short"></a></div>
   <div class="search-all"><input id="qAll" type="search" data-i18n-ph="search.all" dir="auto">
     <button id="nameBtn" data-i18n-title="name.button_title"></button></div>
   <div id="recs"></div>
   <div id="globalResults" hidden></div>
 </aside>
 <main>
-  <div class="player">
-    <div style="display:flex;gap:10px;align-items:baseline;justify-content:space-between">
-      <h2 id="title"></h2><button id="recReviewed" hidden></button></div>
-    <audio id="audio" controls preload="metadata"></audio>
-    <div id="timeline" data-i18n-title="player.timeline"></div>
-    <div class="tools">
-      <input id="q" type="search" data-i18n-ph="tools.filter" dir="auto">
-      <label><input id="follow" type="checkbox" checked> <span data-i18n="tools.follow"></span></label>
-      <label data-i18n-title="tools.corrected_title"><input id="useCorrected" type="checkbox" checked> <span data-i18n="tools.corrected"></span></label>
-      <label><input id="flaggedOnly" type="checkbox"> <span data-i18n="tools.flagged"></span></label>
-      <label data-i18n-title="name.only_title"><input id="namedOnly" type="checkbox"> <span id="namedLabel"></span></label>
-      <label data-i18n-title="tools.filtered_title"><input id="showFiltered" type="checkbox"> <span data-i18n="tools.filtered"></span></label>
-      <label data-i18n-title="tools.original_title"><input id="original" type="checkbox"> <span data-i18n="tools.original"></span></label>
-      <span class="hint" data-i18n="tools.hint"></span>
+  <div id="home"></div>
+  <div id="viewer" hidden>
+    <div class="player card">
+      <div class="ptitle"><h2 id="title"></h2><button id="recReviewed" hidden></button></div>
+      <audio id="audio" controls preload="metadata"></audio>
+      <div id="timeline" data-i18n-title="player.timeline"></div>
+      <div class="tools">
+        <input id="q" type="search" data-i18n-ph="tools.filter" dir="auto">
+        <label class="chip"><input id="follow" type="checkbox" checked><span data-i18n="tools.follow"></span></label>
+        <label class="chip" data-i18n-title="tools.corrected_title"><input id="useCorrected" type="checkbox" checked><span data-i18n="tools.corrected"></span></label>
+        <label class="chip"><input id="flaggedOnly" type="checkbox"><span data-i18n="tools.flagged"></span></label>
+        <label class="chip" data-i18n-title="name.only_title"><input id="namedOnly" type="checkbox"><span id="namedLabel"></span></label>
+        <label class="chip" data-i18n-title="tools.filtered_title"><input id="showFiltered" type="checkbox"><span data-i18n="tools.filtered"></span></label>
+        <label class="chip" data-i18n-title="tools.original_title"><input id="original" type="checkbox"><span data-i18n="tools.original"></span></label>
+      </div>
+      <div class="hint" data-i18n="tools.hint"></div>
     </div>
+    <details id="flagsPanel" class="card" open hidden><summary id="flagsSummary"></summary><div id="flagsList"></div></details>
+    <div id="transcript"></div>
   </div>
-  <details id="flagsPanel" open hidden><summary id="flagsSummary"></summary><div id="flagsList"></div></details>
-  <div id="transcript"><div class="empty" data-i18n="tr.empty_start"></div></div>
 </main>
 
 <dialog id="importDlg">
@@ -310,6 +323,8 @@
 const $ = s => document.querySelector(s);
 const audio = $('#audio');
 const cat = c => t('cat.' + c) === 'cat.' + c ? c : t('cat.' + c);
+const ICON = { physical: '✋', threat: '⚠️', insult: '💢', secrecy: '🤫', neglect: '🚫', distress: '😟', other: '❔',
+  profanity: '🤬', crying: '😢', screaming: '😱', yelling: '📢', impact: '💥' };
 let recs = [], current = null, segs = [], flags = [], soundEvents = [], segEls = [], nowIdx = -1, flaggedSeg = new Map();
 
 const fmt = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
@@ -322,9 +337,20 @@ const trLabel = s => (s.translation_lang || 'en').toUpperCase();
 const trDir = s => s.translation_lang === 'he' ? 'rtl' : 'ltr';
 const locale = () => LANG === 'he' ? 'he-IL' : undefined;
 const clock = (rec, x) => rec?.started_at
-  ? new Date(new Date(rec.started_at).getTime() + x * 1000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  ? new Date(new Date(rec.started_at).getTime() + x * 1000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
   : '';
 const startedLabel = r => new Date(r.started_at || r.file_mtime * 1000).toLocaleString(locale());
+const hm = d => d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const dayLabel = day => new Date(day + 'T12:00').toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'short' });
+// "07:10 – 12:11": when the recording ran, friendlier than its file name.
+const recLabel = r => { if (!r.started_at) return r.name; const a = new Date(r.started_at);
+  return r.duration ? `${hm(a)} – ${hm(new Date(a.getTime() + r.duration * 1000))}` : hm(a); };
+const ltr = x => `<span dir="ltr">${esc(x)}</span>`;   // times read left to right in Hebrew too
+function renderTitle() {
+  if (!current) return;
+  $('#title').innerHTML = (current.started_at ? `${esc(dayLabel(current.started_at.slice(0, 10)))} · ${ltr(recLabel(current))}` : esc(current.name))
+    + `<span class="fname">${esc(current.name)}</span>`;
+}
 const audioUrl = id => `/api/recordings/${id}/audio${$('#original').checked ? '?original=true' : ''}`;
 const sevColor = s => getComputedStyle(document.documentElement).getPropertyValue(s >= 5 ? '--sev5' : s >= 3 ? '--sev3' : '--sev1');
 const activeFlags = () => flags.filter(f => f.review !== 'false_alarm' && f.review !== 'ok');
@@ -346,21 +372,69 @@ const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Typ
 
 async function loadRecs() {
   recs = await (await fetch('/api/recordings')).json();
-  $('#recs').innerHTML = recs.length ? recs.map(r => `
-    <div class="rec${current?.id === r.id ? ' active' : ''}" data-id="${r.id}">
-      <div class="name">${esc(r.name)}</div>
-      <div class="meta">${startedLabel(r)} · ${r.duration ? fmt(r.duration) : '—'}
-        · <span class="badge">${esc(statusText(r.status))}</span>
-        ${r.open_count ? `<span class="sev s${r.max_severity}">${t('rev.open', [r.open_count])}</span>` : ''}
-        ${r.reviewed_at ? `<span class="revbadge">${t('rev.badge')}</span>` : ''}</div>
-    </div>`).join('') : `<div class="empty">${t('rec.none')}</div>`;
+  // Grouped by day, newest day first; within a day in time order.
+  const byDay = new Map();
+  for (const r of [...recs].sort((a, b) => (a.started_at || '').localeCompare(b.started_at || '')))
+    { const d = (r.started_at || '').slice(0, 10); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(r); }
+  const days = [...byDay.keys()].sort().reverse();
+  $('#recs').innerHTML = recs.length ? days.map(d => {
+    const rs = byDay.get(d), open = rs.reduce((n, r) => n + (r.open_count || 0), 0), done = rs.every(r => r.reviewed_at);
+    return `<div class="dayhead"><span>${d ? esc(dayLabel(d)) : '—'}</span>${done ? `<span class="revbadge">${t('rev.badge')}</span>`
+      : open ? `<span>${t('rev.open', [open])}</span>` : ''}</div>` + rs.map(r => `
+    <div class="rec${current?.id === r.id ? ' active' : ''}" data-id="${r.id}" title="${esc(r.name)}">
+      <div class="name">${ltr(recLabel(r))}${r.open_count ? `<span class="sev s${r.max_severity}">${r.open_count}</span>`
+        : r.reviewed_at ? `<span class="revbadge">✓</span>` : ''}</div>
+      <div class="meta">${r.duration ? fmt(r.duration) : '—'}${r.status !== 'done' ? ` · <span class="badge">${esc(statusText(r.status))}</span>` : ''}</div>
+    </div>`).join('');
+  }).join('') : `<div class="empty">${t('rec.none')}</div>`;
   document.querySelectorAll('.rec').forEach(el => el.onclick = () => openRec(+el.dataset.id));
 }
 
+// ---------------------------------------------------------------- home: the latest days at a glance
+async function loadHome() {
+  const home = $('#home');
+  if (!recs.length) {
+    home.innerHTML = `<div class="welcome">${document.querySelector('.brand svg').outerHTML.replace('width="30" height="30"', 'width="84" height="84"')}
+      <h2>${t('home.empty_title')}</h2><p>${t('home.empty_text')}</p>
+      <button class="bigbtn" id="homeImport">${t('imp.button')}</button></div>`;
+    $('#homeImport').onclick = () => $('#importBtn').click();
+    return;
+  }
+  const data = await (await fetch('/api/days')).json();
+  const days = [...data.days].reverse();
+  const open = days.reduce((n, d) => n + d.open, 0);
+  const h = new Date().getHours();
+  const hello = t(h < 12 ? 'home.morning' : h < 18 ? 'home.afternoon' : 'home.evening');
+  home.innerHTML = `<div class="hero"><h2>${hello}</h2><p>${open ? t('home.sub_open', [open]) : t('home.sub_clear')}</p></div>
+    <div class="daycards">${days.slice(0, 9).map((d, i) => `<div class="card daycard">
+      <div class="dtop"><span class="dname">${esc(dayLabel(d.day))}</span>
+        <span class="dhours">${d.hours ? ltr(d.hours.join(' – ')) : ''}</span></div>
+      <div class="stats">${d.reviewed ? `<span class="stat done">${t('rev.badge')}</span>` : d.open ? `<span class="stat open">${t('rev.open', [d.open])}</span>` : ''}
+        ${d.concerning ? `<span class="stat open">😟 ${t('home.concerning', [d.concerning])}</span>` : ''}
+        <span class="stat">😢 ${t('home.crying', { n: Math.round(d.crying_minutes) })}</span>
+        <span class="stat">🎙 ${t('home.recs', [d.recordings.length])}</span></div>
+      <div class="dacts"><button class="${d.open ? 'primary' : ''}" data-day="${i}">${d.open ? t('home.start') : t('home.open')}</button></div>
+    </div>`).join('')}</div>`;
+  home.querySelectorAll('button[data-day]').forEach(b => b.onclick = () => {
+    const d = days[+b.dataset.day];
+    const pick = d.recordings.find(r => recs.find(x => x.id === r.id)?.open_count) || d.recordings[0];
+    openRec(pick.id);
+  });
+}
+function showHome() {
+  current = null; audio.pause(); history.replaceState(null, '', location.pathname);
+  $('#viewer').hidden = true; $('#home').hidden = false;
+  $('#homeBtn').classList.add('cur');
+  document.querySelectorAll('.rec').forEach(el => el.classList.remove('active'));
+  loadHome();
+}
+$('#homeLink').onclick = showHome; $('#homeBtn').onclick = showHome;
+
 async function openRec(id, seekTo) {
   current = recs.find(r => r.id === id);
+  $('#home').hidden = true; $('#viewer').hidden = false; $('#homeBtn').classList.remove('cur');
   document.querySelectorAll('.rec').forEach(el => el.classList.toggle('active', +el.dataset.id === id));
-  $('#title').textContent = current.name;
+  renderTitle();
   renderReviewed();
   [segs, flags, soundEvents] = await Promise.all([
     fetch(`/api/recordings/${id}/segments`).then(r => r.json()),
@@ -371,6 +445,10 @@ async function openRec(id, seekTo) {
   nowIdx = -1;
   renderAll();
   if (seekTo != null) playFrom(seekTo);
+  else if (current.school_from != null) {   // start at drop-off, not at the faded minutes before it
+    const i = segs.findIndex((s, k) => s.start >= current.school_from && segEls[k]);   // first shown line
+    segEls[i]?.scrollIntoView({ block: 'start' });
+  }
   history.replaceState(null, '', `#r=${id}`);
 }
 
@@ -417,16 +495,17 @@ function renderFlags() {
   const rank = f => ({ concerning: 1, ok: 2, false_alarm: 3 }[f.review] || 0);   // open first
   const sorted = [...flags].sort((a, b) => rank(a) - rank(b) || b.severity - a.severity || a.start - b.start);
   $('#flagsList').innerHTML = sorted.map(f => `
-    <div class="flag ${f.review || ''}" data-id="${f.id}">
-      <div><span class="ts" data-t="${f.start}">▶ ${fmt(f.start)}</span><br><span class="sev s${f.severity}">${f.severity}</span></div>
-      <div><span class="cat">${esc(cat(f.category))}</span><span class="src">${esc(t('src.' + f.source))}</span>
+    <div class="flag sv${f.severity} ${f.review || ''}" data-id="${f.id}">
+      <div class="ficon">${ICON[f.category] || '❔'}</div>
+      <div><div class="fhead"><span class="cat">${esc(cat(f.category))}</span><span class="sev s${f.severity}">${f.severity}</span>
+        <span class="ts" data-t="${f.start}">▶ ${clock(current, f.start) || fmt(f.start)}</span><span class="src">${esc(t('src.' + f.source))}</span></div>
         <div class="reason" dir="auto">${esc(f.reason)}</div>
         ${f.quote ? `<div class="quote" dir="auto">“${esc(f.quote)}”</div>` : ''}
         ${f.source === 'sound' ? saidAround(f) : ''}</div>
       <div class="acts">
-        <button class="concerning${f.review === 'concerning' ? ' on' : ''}" data-v="concerning">${t('flags.concerning')}</button>
-        <button class="ok${f.review === 'ok' ? ' on' : ''}" data-v="ok" title="${esc(t('rev.fine_title'))}">${t('rev.fine')}</button>
-        <button class="false_alarm${f.review === 'false_alarm' ? ' on' : ''}" data-v="false_alarm" title="${esc(t('rev.false_title'))}">${t('flags.false_alarm')}</button>
+        <button class="concerning${f.review === 'concerning' ? ' on' : ''}" data-v="concerning">😟 ${t('flags.concerning')}</button>
+        <button class="ok${f.review === 'ok' ? ' on' : ''}" data-v="ok" title="${esc(t('rev.fine_title'))}">👍 ${t('rev.fine')}</button>
+        <button class="false_alarm${f.review === 'false_alarm' ? ' on' : ''}" data-v="false_alarm" title="${esc(t('rev.false_title'))}">✖ ${t('flags.false_alarm')}</button>
       </div>
     </div>`).join('');
   $('#flagsList').querySelectorAll('.flag').forEach(el => {
@@ -559,7 +638,6 @@ async function globalSearch() {
 // The child's name: highlighted in every line, its own filter, and a list across all recordings.
 let childName = '', nameRe = null;
 function nameLabels() {
-  if (!current) $('#title').textContent = t('player.select');
   $('#nameBtn').textContent = childName ? t('name.button', { name: childName }) : t('name.button_none');
   $('#namedLabel').textContent = childName ? t('name.only', { name: childName }) : t('name.only_none');
 }
@@ -630,7 +708,7 @@ async function loadJob() {
     $('#jobResume')?.addEventListener('click', () => startJob(j.params));
     $('#jobHide')?.addEventListener('click', () => { box.hidden = true; });
   }
-  if (lastJobStatus === 'running' && j.status !== 'running') loadRecs();   // new results are in
+  if (lastJobStatus === 'running' && j.status !== 'running') loadRecs().then(() => { if (!current) loadHome(); });   // new results are in
   lastJobStatus = j.status;
   clearTimeout(jobTimer);
   jobTimer = setTimeout(loadJob, j.status === 'running' ? 2000 : 15000);
@@ -875,12 +953,12 @@ function switchLang(lang, save = true) {
   setLang(lang);
   nameLabels();
   if (save) post('/api/settings', { settings: { ui_language: lang } });
-  loadRecs(); if (current) renderAll(); loadJob();
+  loadRecs().then(() => { if (!current) loadHome(); }); if (current) { renderAll(); renderTitle(); renderReviewed(); } loadJob();
 }
 $('#langBtn').onclick = () => switchLang(LANG === 'he' ? 'en' : 'he');
 
 async function refreshAfterSettings() {
-  await loadName(); setLang(LANG); nameLabels(); loadRecs(); if (current) renderAll();
+  await loadName(); setLang(LANG); nameLabels(); await loadRecs(); if (current) renderAll(); else loadHome();
 }
 
 // ---------------------------------------------------------------- start
@@ -889,7 +967,7 @@ async function refreshAfterSettings() {
   setLang(n.ui_language); nameLabels();
   await loadRecs();
   const m = location.hash.match(/r=(\d+)/), tm = location.hash.match(/t=(\d+)/);   // #r=3&t=8804 from the Days page
-  if (m && recs.some(r => r.id === +m[1])) openRec(+m[1], tm ? +tm[1] : undefined);
+  if (m && recs.some(r => r.id === +m[1])) openRec(+m[1], tm ? +tm[1] : undefined); else loadHome();
   loadJob();
   if (n.setup_needed) openSettings(true);
 })();

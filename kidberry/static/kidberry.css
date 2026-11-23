@@ -1,0 +1,81 @@
+/* Kidberry's look: warm, calm and friendly. Shared by the review page and the Days page. */
+@font-face { font-family: "Rubik"; src: url("/static/fonts/Rubik.ttf") format("truetype"); font-weight: 300 900; font-display: swap; }
+
+:root {
+  --bg: #faf7f3; --panel: #ffffff; --panel-2: #f5f0ea; --text: #2c2533; --muted: #7b7383; --line: #ece5de;
+  --accent: #6a4bc4; --accent-2: #8a6ee0; --accent-soft: #efeafc; --accent-text: #ffffff;
+  --speech: #c3b5ee; --hit: #fff0b8;
+  --sev1: #e3a83a; --sev3: #e8743b; --sev5: #d84b4b; --flag-soft: #fdf0ea; --ok: #2f9e6e; --ok-soft: #e4f5ec;
+  --shadow: 0 1px 2px rgba(60, 40, 80, .06), 0 4px 16px rgba(60, 40, 80, .06);
+  --shadow-lg: 0 10px 40px rgba(40, 20, 60, .18);
+  --r: 14px; --r-sm: 10px;
+  --font: "Rubik", system-ui, "Segoe UI", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15131b; --panel: #1e1b26; --panel-2: #26222f; --text: #ede9f4; --muted: #a29bb0; --line: #312c3c;
+    --accent: #9f86f2; --accent-2: #b4a0f7; --accent-soft: #2c2545; --accent-text: #17141f;
+    --speech: #4c4275; --hit: #5a4a12;
+    --sev1: #e8b54e; --sev3: #f08a52; --sev5: #f06a6a; --flag-soft: #33231f; --ok: #4cc08b; --ok-soft: #1d3329;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+    --shadow-lg: 0 10px 40px rgba(0,0,0,.5);
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { font: 14px/1.5 var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+h1, h2, h3 { font-weight: 600; letter-spacing: -.01em; }
+
+/* ---- buttons, inputs, chips */
+button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  border-radius: var(--r-sm); padding: 5px 12px; font-size: 13px; transition: background .15s, border-color .15s, transform .05s; }
+button:hover:not(:disabled) { border-color: var(--accent-2); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: .5; cursor: default; }
+button.on, button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 500; }
+button.on:hover:not(:disabled), button.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+button.ghost:hover:not(:disabled) { background: var(--panel-2); color: var(--text); border-color: transparent; }
+.iconbtn { padding: 5px 9px; }
+input[type=search], input[type=text], input[type=password], input[type=email], input[type=number],
+input[type=date], input[type=time] { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--panel); color: var(--text); font: inherit; outline: none; transition: border-color .15s, box-shadow .15s; }
+input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px var(--accent-soft); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; background: var(--panel); transition: all .15s; }
+.chip input { display: none; }
+.chip:hover { border-color: var(--accent-2); }
+.chip:has(input:checked) { background: var(--accent-soft); border-color: var(--accent-2); color: var(--text); }
+.note { color: var(--muted); font-size: 12.5px; }
+.err { color: var(--sev5); } .okmsg { color: var(--ok); }
+.muted { color: var(--muted); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+
+/* ---- severity and badges */
+.sev { display: inline-block; min-width: 22px; text-align: center; font-size: 11px; font-weight: 600; color: #fff;
+  border-radius: 999px; padding: 1px 8px; }
+.s1, .s2 { background: var(--sev1); } .s3, .s4 { background: var(--sev3); } .s5 { background: var(--sev5); }
+.badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+.revbadge { color: var(--ok); font-size: 11.5px; font-weight: 600; }
+
+/* ---- brand */
+.brand { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text); cursor: pointer; }
+.brand svg { flex: none; }
+.brand b { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+
+/* ---- dialogs */
+dialog { border: none; border-radius: 18px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-lg);
+  width: min(480px, calc(100vw - 32px)); padding: 22px 24px; }
+dialog::backdrop { background: rgba(30, 20, 45, .35); backdrop-filter: blur(2px); }
+dialog h3 { margin: 0 0 14px; font-size: 18px; }
+.dlgacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; align-items: center; }
+.dlgacts button { padding: 7px 16px; font-size: 13.5px; }
+
+/* ---- toast */
+#toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 10px 16px; border-radius: 12px; font-size: 13px; display: flex; gap: 14px; align-items: center;
+  box-shadow: var(--shadow-lg); z-index: 20; }
+#toast button { background: none; border: none; color: var(--accent-2); text-decoration: underline; padding: 0; font-weight: 600; }

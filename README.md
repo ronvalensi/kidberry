@@ -165,6 +165,8 @@ Flags and the AI review only cover drop-off to pickup. Lines outside are shown f
 - [x] Smart AI mode: AI review only around sound/keyword triggers (default; `--full` for every line)
 - [x] Days overview, patterns across days, "did an adult respond?" per crying episode, one daily command
 - [ ] Weekly AI summary of the week's flags
+- [ ] Choose the kindergarten's languages in setup (Hebrew, English, Spanish, Russian); download only the models needed
+- [ ] Arabic (Hebrew + Arabic kindergartens): waiting for sample recordings to choose and test a dialect model
 - [ ] Later: speaker separation (adult vs child), real clock-time per file
 
 ## Credits & licenses

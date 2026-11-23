@@ -14,6 +14,8 @@ from .db import connect
 
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Kidberry")
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 @app.get("/")
@@ -59,8 +61,165 @@ def segments(rec_id: int):
 
 @app.get("/api/name")
 def child_name():
-    from .names import NAME, NAME_EN, highlight_pattern
-    return {"name": NAME, "name_en": NAME_EN, "pattern": highlight_pattern()}
+    from . import names, settings
+    return {"name": names.NAME, "name_en": names.NAME_EN, "pattern": names.highlight_pattern(),
+            "ui_language": settings.ui_language(), "setup_needed": settings.setup_needed()}
+
+
+# ---------------------------------------------------------------- settings (the wizard and the settings page)
+
+def _reload() -> None:
+    """Settings changed: re-read them everywhere this server process uses them. (Processing runs are
+    separate processes, so each run reads the file fresh anyway.)"""
+    import importlib
+    from . import hardware, names, settings
+    importlib.reload(config)
+    importlib.reload(settings)
+    importlib.reload(names)
+    hardware.profile.cache_clear()
+
+
+def _settings_view() -> dict:
+    from . import hardware, settings
+    hw = hardware.profile()
+    return {"settings": settings.S, "setup_needed": settings.setup_needed(),
+            "providers": [ai.info(k) for k in ai.PROVIDERS], "current_provider": ai.provider(),
+            "hardware": {"profile": hw.name, "summary": hw.summary(), "cores": hw.cores},
+            "languages": settings.LANGUAGE_NAMES}
+
+
+@app.get("/api/settings")
+def get_settings():
+    return _settings_view()
+
+
+def _words(v, field: str) -> list[str]:
+    if isinstance(v, str):
+        v = re.split(r"[,\n]", v)
+    if not isinstance(v, list) or not all(isinstance(w, str) for w in v):
+        raise HTTPException(400, f"{field}: a list of words")
+    return [w.strip() for w in v if w.strip()][:30]
+
+
+def _text(v, field: str, n: int = 200) -> str:
+    if not isinstance(v, str) or len(v) > n:
+        raise HTTPException(400, f"{field}: text up to {n} characters")
+    return v.strip()
+
+
+class SettingsIn(BaseModel):
+    settings: dict
+    keys: dict = {}            # provider -> new API key ("" = keep the saved one)
+    remove_keys: list = []
+
+
+@app.post("/api/settings")
+def save_settings(req: SettingsIn):
+    """Save what the form sends. Only known fields are taken, each checked; keys the form does not
+    know (hardware, language_notes, ...) are kept as they are. API keys go to data/secrets.json."""
+    import json
+    from . import settings
+    new, out = req.settings, settings.raw()
+    if "child" in new:
+        c = new["child"] or {}
+        out["child"] = {**out.get("child", {}), "name": _text(c.get("name", ""), "child.name", 40),
+                        "name_latin": _text(c.get("name_latin", ""), "child.name_latin", 40),
+                        **{k: _words(c.get(k, []), f"child.{k}") for k in
+                           ("heard_as", "maybe_heard_as", "heard_as_common_word")}}
+    if "other_children" in new:
+        kids = new["other_children"] or []
+        if not isinstance(kids, list) or len(kids) > 60:
+            raise HTTPException(400, "other_children: a list")
+        out["other_children"] = [{"name": _text(k.get("name", ""), "other_children.name", 40),
+                                  "native": _text(k.get("native", ""), "other_children.native", 40),
+                                  "heard_as": _words(k.get("heard_as", []), "other_children.heard_as"),
+                                  "note": _text(k.get("note", ""), "other_children.note")}
+                                 for k in kids if isinstance(k, dict) and (k.get("name") or k.get("native"))]
+    if "languages" in new:
+        langs = [l for l in (new["languages"] or []) if l in settings.LANGUAGE_NAMES]
+        if not langs:
+            raise HTTPException(400, "choose at least one language")
+        out["languages"] = langs
+        out.pop("staff_languages", None)          # the old Spanish switch: replaced by languages
+    if "country" in new:
+        out["country"] = _text(new["country"], "country", 60) or "Israel"
+    if "ui_language" in new:
+        if new["ui_language"] not in ("en", "he"):
+            raise HTTPException(400, "ui_language: en or he")
+        out["ui_language"] = new["ui_language"]
+    if "recorder" in new:
+        out["recorder"] = {**out.get("recorder", {}), "path": _text((new["recorder"] or {}).get("path", ""),
+                                                                    "recorder.path", 260)}
+    if "ai" in new:
+        a = new["ai"] or {}
+        if a.get("provider") not in ai.PROVIDERS:
+            raise HTTPException(400, "ai.provider: one of " + ", ".join(ai.PROVIDERS))
+        cap = a.get("daily_token_cap", 150000)
+        if not isinstance(cap, int) or not 5000 <= cap <= 10_000_000:
+            raise HTTPException(400, "ai.daily_token_cap: a number from 5,000 to 10,000,000")
+        if a.get("mode", "smart") not in ("smart", "full"):
+            raise HTTPException(400, "ai.mode: smart or full")
+        out["ai"] = {**out.get("ai", {}), "provider": a["provider"], "model": _text(a.get("model", ""), "ai.model", 80),
+                     "daily_token_cap": cap, "mode": a.get("mode", "smart")}
+    if "support" in new:
+        email = _text((new["support"] or {}).get("email", ""), "support.email", 120)
+        if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise HTTPException(400, "support.email: an email address")
+        out["support"] = {"email": email}
+    old_lang = settings.ui_language()
+    settings.save(out)
+    if req.keys or req.remove_keys:
+        try:
+            secrets = json.loads(ai.SECRETS_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            secrets = {}
+        for name, key in (req.keys or {}).items():
+            if name in ai.PROVIDERS and ai.PROVIDERS[name].get("key") and isinstance(key, str) and key.strip():
+                secrets[ai.PROVIDERS[name]["key"]] = key.strip()
+        for name in req.remove_keys or []:
+            if name in ai.PROVIDERS and ai.PROVIDERS[name].get("key"):
+                secrets.pop(ai.PROVIDERS[name]["key"], None)
+        ai.SECRETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ai.SECRETS_PATH.write_text(json.dumps(secrets, indent=2), encoding="utf-8")
+    _reload()
+    if settings.ui_language() != old_lang:      # keyword and sound flag reasons follow the interface language
+        import threading
+        from . import text
+        threading.Thread(target=text.relabel, daemon=True).start()
+    return _settings_view()
+
+
+class FolderCheck(BaseModel):
+    path: str
+
+
+@app.post("/api/settings/check-recorder")
+def check_recorder(req: FolderCheck):
+    """Is this the recorder's folder? Counts the recordings in it."""
+    p = Path(req.path.strip().strip('"'))
+    if not req.path.strip() or not p.is_dir():
+        return {"exists": False, "wavs": 0}
+    try:
+        wavs = sum(1 for f in p.iterdir() if f.suffix.lower() == ".wav")
+    except OSError:
+        return {"exists": False, "wavs": 0}
+    return {"exists": True, "wavs": wavs}
+
+
+@app.post("/api/ai/test")
+def ai_test():
+    """Run `python -m kidberry.ai --test` with the saved settings: one small made-up batch."""
+    import os
+    import subprocess
+    import sys
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    try:
+        p = subprocess.run([sys.executable, "-m", "kidberry.ai", "--test"], cwd=config.ROOT, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", env=env, timeout=600, creationflags=flags)
+        return {"ok": p.returncode == 0, "output": (p.stdout + p.stderr)[-4000:]}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "output": "No answer within 10 minutes."}
 
 
 @app.get("/api/mentions")
@@ -223,7 +382,9 @@ def job_setup():
             have = (conn.execute("SELECT dropoff, pickup FROM school_hours WHERE strftime('%w', day)=? "
                                  "ORDER BY day DESC LIMIT 1", (wd,)).fetchone()
                     or conn.execute("SELECT dropoff, pickup FROM school_hours ORDER BY day DESC LIMIT 1").fetchone())
-    return {"recorder": rec, "day": day, "dropoff": have["dropoff"] if have else "08:00",
+    from . import settings
+    return {"recorder": rec, "day": day, "support_email": settings.S.get("support", {}).get("email", ""),
+            "dropoff": have["dropoff"] if have else "08:00",
             "pickup": have["pickup"] if have else "16:00", "cap": config.AI_DAILY_TOKEN_CAP, "ai": ai.info()}
 
 
@@ -271,6 +432,9 @@ def job_estimate(day: str, dropoff: str, pickup: str, ai: bool = True, full: boo
             "total_minutes": round(est.total_minutes - (0 if ai else est.minutes.get("ai", 0)), 1),
             "ai_tokens": est.ai_tokens if ai else 0, "tokens_used_today": used, "cap": config.AI_DAILY_TOKEN_CAP,
             "hardware": hw.summary(), "profile": hw.name, "notes": hw.notes + [n for n in [hardware.battery_warning()] if n],
+            "note_keys": hw.note_keys + ([{"key": "hw.battery"}] if hardware.battery_warning() else []),
+            "audio_h": round(sum(f["audio_s"] for f in est.files) / 3600, 2),
+            "work_h": round(sum(f["work_s"] for f in est.files) / 3600, 2),
             "lines": est.lines(ai=ai, cap=config.AI_DAILY_TOKEN_CAP)}
 
 

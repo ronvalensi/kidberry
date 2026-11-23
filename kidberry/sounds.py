@@ -181,7 +181,7 @@ def sound_flags(conn, rec) -> int:
     events = [e for e in detect(conn, rec) if not win or (e["end"] > win[0] and e["start"] < win[1])]
     segs = conn.execute("SELECT id, start, end FROM segments WHERE recording_id=? AND filtered IS NULL",
                         (rec["id"],)).fetchall()
-    span = lambda s: f"{s / 60:.1f} min" if s >= 60 else f"{s:.0f} s"
+    from .text import span, t
     responses = conn.execute("SELECT event_start, response, note FROM crying_responses WHERE recording_id=?",
                              (rec["id"],)).fetchall()
     flags = []
@@ -189,19 +189,16 @@ def sound_flags(conn, rec) -> int:
         if e["crying"] < CRY_FLAG_MIN:
             continue
         resp = episode_response([r for r in responses if e["start"] <= r["event_start"] < e["end"]])
-        reason = (f"Crying on and off for {span(e['end'] - e['start'])} ({span(e['crying'])} of crying in "
-                  f"{e['bouts']} bouts, confidence up to {e['peak']:.0%}). ")
-        reason += {"yes": "An adult responded (AI, from the transcript).",
-                   "no": "No adult heard responding (AI, from the transcript).",
-                   "unclear": "Unclear whether an adult responded (AI)."}.get(resp, "Listen for whether an adult responds.")
+        reason = t("crying", span=span(e["end"] - e["start"]), crying=span(e["crying"]), bouts=e["bouts"],
+                   peak=f"{e['peak']:.0%}")
+        reason += t(f"resp_{resp}" if resp in ("yes", "no", "unclear") else "resp_none")
         flags.append({**e, "category": "crying", "severity": severity("crying", e["crying"], e["peak"]),
                       "reason": reason, "adult_response": resp})
     for e in events:
         if e["group"] == "crying":
             continue
         dur = e["end"] - e["start"]
-        reason = (f"{RULES[e['group']]['label']} for ~{span(dur)} (confidence {e['peak']:.0%}). "
-                  "Listen to hear who and why.")
+        reason = t("sound", label=t(e["group"]), span=span(dur), peak=f"{e['peak']:.0%}")
         flags.append({**e, "category": e["group"], "severity": severity(e["group"], dur, e["peak"]),
                       "reason": reason})
     for f in flags:

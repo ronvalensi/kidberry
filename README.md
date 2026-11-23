@@ -22,8 +22,13 @@ py -3.11 -m venv .venv
 
 The first transcription downloads the speech models (~3-5 GB).
 
-Then create `data\settings.json` with your child's name and your recorder's folder (see `kidberry/settings.py`
-for every field):
+Start the page (`.\.venv\Scripts\python -m kidberry.server`, then open http://127.0.0.1:8000). The first time, a
+setup wizard asks for the interface language (English or Hebrew), your child's name and how speech recognition
+mishears it, other children with similar names, the kindergarten's languages, the recorder's folder, the AI
+provider (with its cost and privacy note, and a test button) and, optionally, a support email. Everything can be
+changed later under **⚙ Settings**. The **עברית / English** button switches the interface, right-to-left included.
+
+The answers are kept in `data\settings.json` (see `kidberry/settings.py` for every field); you can also edit it by hand:
 ```json
 {
   "child": {"name": "נועם", "name_latin": "Noam", "heard_as": ["נועמי"], "maybe_heard_as": [], "heard_as_common_word": []},
@@ -45,8 +50,9 @@ Only the models these need are downloaded and loaded:
 | Hebrew + others | the Hebrew model + Whisper large-v3 (~3 GB), which detects each window's language |
 | no Hebrew | Whisper large-v3 only |
 
-`ui_language` (`"en"` or `"he"`) is the language other languages are translated into. Hebrew lines are never
-translated. `language_notes` can give the AI a hint per language, e.g. `{"es": "Rioplatense"}`.
+`ui_language` (`"en"` or `"he"`) is the interface language. Other languages are translated into it (Hebrew lines are
+never translated), and the AI writes its flag reasons in it. Switching it rewrites the keyword and sound flag reasons
+in a few seconds, locally. `language_notes` can give the AI a hint per language, e.g. `{"es": "Rioplatense"}`.
 
 ## Daily use
 
@@ -150,6 +156,7 @@ After changing the filter rules in `transcribe.py`, re-apply them in seconds wit
 | `KIDBERRY_ENGLISH_MIN_PROB` | `0.5` | how sure the detector must be to treat a window as English |
 | `KIDBERRY_DEVICE` | auto | `cpu` or `cuda` to override the hardware check |
 | `KIDBERRY_AI_BACKEND`, `KIDBERRY_AI_MODEL`, `KIDBERRY_AI_DAILY_TOKEN_CAP` | from settings | override the `"ai"` settings |
+| `KIDBERRY_DATA_DIR` | `data` | a different folder for the database, settings and keys (a second child, or tests) |
 | `KIDBERRY_PORT` | `8000` | |
 
 ## Sound detection (crying, screaming, yelling, impacts)
@@ -262,9 +269,10 @@ send it yourself, if you want to.
 - [x] Days overview, patterns across days, "did an adult respond?" per crying episode, one daily command
 - [ ] Weekly AI summary of the week's flags
 - [x] Kindergarten languages in settings (Hebrew, English, Spanish, Russian); only the models needed are loaded
-- [ ] Choose the languages in the setup wizard
+- [x] Choose the languages in the setup wizard
 - [x] Choice of AI: your Claude plan, Claude / OpenAI / Gemini API key (incl. Gemini's free tier), or no AI; `--test`
-- [x] Support report you read and send yourself (no telemetry)
+- [x] Support report you read and send yourself (no telemetry), with "Email it" when a support email is set
+- [x] Setup wizard and settings page; English / Hebrew interface with right-to-left layout
 - [ ] Arabic (Hebrew + Arabic kindergartens): waiting for sample recordings to choose and test a dialect model
 - [ ] Later: speaker separation (adult vs child), real clock-time per file
 

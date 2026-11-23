@@ -43,6 +43,7 @@ class Profile:
     ram_free_gb: float = 0.0
     cores: int = 0
     notes: list = field(default_factory=list)
+    note_keys: list = field(default_factory=list)   # the same notes for the page to show in its language
 
     def summary(self) -> str:
         hw = f"{self.gpu_name} ({self.vram_gb:.0f} GB)" if self.device == "cuda" else f"CPU, {self.cores} cores"
@@ -75,7 +76,7 @@ def profile() -> Profile:
     gpu_name, vram = _gpu() if want != "cpu" else ("", 0.0)
     base = dict(cpu_threads=cores, gpu_name=gpu_name, vram_gb=vram, ram_gb=vm.total / 1e9,
                 ram_free_gb=vm.available / 1e9, cores=cores)
-    notes = []
+    notes, keys = [], []
     if gpu_name and (vram >= 6 or (vram == 0 and want in ("gpu", "cuda"))):
         p = Profile("gpu", "cuda", "float16", model_general=config.MODEL_GENERAL, sound_hop=5.0, **base)
     elif gpu_name and vram >= 3:
@@ -83,8 +84,10 @@ def profile() -> Profile:
     else:
         if want in ("gpu", "cuda"):
             notes.append("A GPU was requested, but no usable NVIDIA GPU was found - running on the CPU.")
+            keys.append({"key": "hw.no_gpu"})
         elif gpu_name:
             notes.append(f"{gpu_name} has only {vram:.1f} GB - running on the CPU.")
+            keys.append({"key": "hw.small_gpu", "gpu": gpu_name, "gb": round(vram, 1)})
         p = Profile("cpu", "cpu", "int8", model_general=os.environ.get("KIDBERRY_MODEL_EN_CPU", "large-v3-turbo"),
                     sound_hop=10.0, **base)
     if os.environ.get("KIDBERRY_COMPUTE"):
@@ -92,7 +95,9 @@ def profile() -> Profile:
     if p.ram_free_gb < RAM_NEED[p.name]:
         notes.append(f"Only {p.ram_free_gb:.1f} GB of memory is free; Kidberry needs about {RAM_NEED[p.name]:.0f} GB. "
                      "Close other programs (browsers especially) before processing, or it may be stopped.")
+        keys.append({"key": "hw.low_ram", "free": round(p.ram_free_gb, 1), "need": RAM_NEED[p.name]})
     p.notes = notes
+    p.note_keys = keys
     return p
 
 

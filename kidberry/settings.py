@@ -16,6 +16,8 @@ updates to the code never touch it. Missing keys fall back to DEFAULTS.
     language_notes              optional hints for the AI per language, e.g. {"es": "Rioplatense, e.g. \"ponelo\""}
     ui_language                 "en" or "he": the interface language, and what other languages are translated into
     recorder.path               the folder on the recorder that holds the recordings
+    ai                          the AI review: provider, model, daily_token_cap, mode (see ai.py)
+    support.email               optional: who helps you with Kidberry; the support report's "Email it" goes there
 """
 import copy
 import json
@@ -32,6 +34,8 @@ DEFAULTS = {
     "language_notes": {},
     "ui_language": "en",
     "recorder": {"path": ""},
+    "ai": {"provider": "claude-code", "model": "", "daily_token_cap": 150000, "mode": "smart"},
+    "support": {"email": ""},
 }
 
 
@@ -50,7 +54,22 @@ def load() -> dict:
 
 def save(settings: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_PATH.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = SETTINGS_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(SETTINGS_PATH)
+
+
+def raw() -> dict:
+    """The file as saved (no defaults filled in), so saving the form keeps keys the form does not know."""
+    try:
+        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def setup_needed() -> bool:
+    """First run: no child name yet, so the page opens the setup wizard."""
+    return not S["child"]["name"]
 
 
 S = load()

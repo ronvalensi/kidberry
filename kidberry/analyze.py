@@ -20,7 +20,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
-from . import ai, config, keywords, settings
+from . import ai, config, keywords, settings, text
 from .ai import ProviderError, UsageLimitHit
 from .db import connect
 
@@ -72,9 +72,9 @@ You get numbered lines with their time offsets. Lines marked CONTEXT are for con
 
 1. Correction. For every TARGET line, write your best reconstruction of what was most likely said, in the original language. Use the kindergarten setting, the neighbouring lines and Hebrew phonetics to fix misrecognized words. Keep the speaker's meaning and tone exactly: never soften or sharpen it, and never add content that is not supported by the recognized sounds. If a line cannot be reconstructed, return it unchanged with confidence "unintelligible". Confidence: "high" = nearly certain, "medium" = plausible, "low" = a guess.
 
-2. Risk flags. Flag moments a concerned parent should listen to: physical harm, threats or intimidation, insults, humiliation or screaming at a child, secrecy ("don't tell your parents"), neglect or deprivation (food, toilet, leaving a child alone or excluded), and clear child distress (fear, calling for help, pain). Normal kindergarten firmness ("sit down", "wait your turn", "no running", "time to tidy up") is not a concern; do not flag it. Children's play shouting is usually not a concern. A false alarm costs the parent a minute of listening; a missed real incident costs much more - when a line is ambiguous but could be serious, flag it at low severity. Base severity on what was most likely said, and say in the reason when the flag depends on an uncertain reconstruction. Severity: 1 = worth a listen, 3 = concerning, 5 = urgent. Write reasons in English, one or two short sentences. quote = the relevant words in the original language. Also flag bad language: adults swearing or using crude/sexual language where children can hear, even when it is not aimed at a child (category "profanity", severity 1, or 2 when strong or repeated). Swearing or crude words aimed at a child are an insult (category "insult"), scored as such. Do not flag profanity that clearly comes from the radio or a song. Return an empty flags list when nothing is concerning.
+2. Risk flags. Flag moments a concerned parent should listen to: physical harm, threats or intimidation, insults, humiliation or screaming at a child, secrecy ("don't tell your parents"), neglect or deprivation (food, toilet, leaving a child alone or excluded), and clear child distress (fear, calling for help, pain). Normal kindergarten firmness ("sit down", "wait your turn", "no running", "time to tidy up") is not a concern; do not flag it. Children's play shouting is usually not a concern. A false alarm costs the parent a minute of listening; a missed real incident costs much more - when a line is ambiguous but could be serious, flag it at low severity. Base severity on what was most likely said, and say in the reason when the flag depends on an uncertain reconstruction. Severity: 1 = worth a listen, 3 = concerning, 5 = urgent. Write reasons in """ + settings.LANGUAGE_NAMES[settings.ui_language()] + """, one or two short sentences. quote = the relevant words in the original language. Also flag bad language: adults swearing or using crude/sexual language where children can hear, even when it is not aimed at a child (category "profanity", severity 1, or 2 when strong or repeated). Swearing or crude words aimed at a child are an insult (category "insult"), scored as such. Do not flag profanity that clearly comes from the radio or a song. Return an empty flags list when nothing is concerning.
 
-3. Crying response. For every SOUND line of type crying, judge from the transcript whether an adult responded to a crying child during or right after it: "yes" (an adult clearly talks to, comforts or attends to a child), "no" (adults are heard but busy with something else, or nobody speaks for a long time), or "unclear". Return one entry per crying SOUND line, with sound_start copied exactly from the line, and a short English note."""
+3. Crying response. For every SOUND line of type crying, judge from the transcript whether an adult responded to a crying child during or right after it: "yes" (an adult clearly talks to, comforts or attends to a child), "no" (adults are heard but busy with something else, or nobody speaks for a long time), or "unclear". Return one entry per crying SOUND line, with sound_start copied exactly from the line, and a short note in """ + text.t("ai_lang") + "."
 
 CATEGORY_ENUM = list(keywords.CATEGORIES) + ["other"]
 SCHEMA = {
@@ -374,7 +374,7 @@ def keyword_flags(conn, rec_id: int) -> int:
             continue
         top = max(hits.values(), key=lambda h: h[2])
         words = ", ".join(f'"{p}"' for p in hits)
-        flags.append((rec_id, r["start"], r["end"], "keyword", top[1], top[2], f"Warning phrase: {words}",
+        flags.append((rec_id, r["start"], r["end"], "keyword", top[1], top[2], text.t("warning", words=words),
                       r["corrected"] or r["text"], json.dumps([r["id"]])))
     replace_flags(conn, rec_id, "keyword", flags)
     return len(flags)

@@ -108,6 +108,7 @@ def patterns(days: list[dict]) -> dict:
                           "severity": max(f["severity"] for _, f in hits),
                           "title": f"{LABELS.get(cat, cat)} around {_fmt_min(lo)}-{_fmt_min(hi)}",
                           "detail": f"on {n_days} of the last {len(school)} kindergarten days",
+                          "vars": {"from": _fmt_min(lo), "to": _fmt_min(hi), "n": n_days, "of": len(school)},
                           "flags": [f["id"] for _, f in hits]})
 
     # 2. Serious categories / bad language on several days, at any time.
@@ -119,6 +120,7 @@ def patterns(days: list[dict]) -> dict:
                           "severity": max(f["severity"] for _, f in items),
                           "title": f"{LABELS.get(cat, cat)} on {n_days} days",
                           "detail": f"on {n_days} of the last {len(school)} kindergarten days",
+                          "vars": {"n": n_days, "of": len(school)},
                           "flags": [f["id"] for _, f in items]})
 
     # 3. Crying with no adult response, on several days.
@@ -129,6 +131,7 @@ def patterns(days: list[dict]) -> dict:
         found.append({"kind": "unattended", "category": "crying", "days": sorted({d for d, _ in unatt}),
                       "severity": 3, "title": "Long crying with no adult heard responding",
                       "detail": f"{len(unatt)} times on {n_days} of the last {len(school)} kindergarten days",
+                      "vars": {"times": len(unatt), "n": n_days, "of": len(school)},
                       "flags": [f["id"] for _, f in unatt]})
 
     # 4. Something the parent marked "Concerning" happening again on a later day.
@@ -142,6 +145,7 @@ def patterns(days: list[dict]) -> dict:
                           "title": f"{LABELS.get(cf['category'], cf['category'])} again after you marked it Concerning",
                           "detail": f"you marked {cday} {cf['clock']}; it came up again on "
                                     f"{', '.join(sorted({d for d, _ in later}))}",
+                          "vars": {"day": cday, "clock": cf["clock"], "later": sorted({d for d, _ in later})},
                           "flags": [cf["id"]] + [f["id"] for _, f in later]})
 
     found.sort(key=lambda p: -p["severity"])

@@ -24,6 +24,7 @@
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
   header { display: flex; align-items: baseline; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
   header h1 { font-size: 17px; margin: 0; }
@@ -40,13 +41,16 @@
   .pattern .links a { color: var(--accent); margin-right: 10px; font-size: 12px; text-decoration: none; }
   .tablewrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th, td { text-align: start; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; font-size: 12px; }
-  td.num { text-align: right; }
+  td.num { text-align: end; }
   .cellbar { display: flex; align-items: center; gap: 8px; }
   .cellbar .b { height: 8px; border-radius: 0 4px 4px 0; background: var(--bar); min-width: 2px; }
   .cellbar span { min-width: 34px; text-align: right; }
-  td a { color: var(--accent); text-decoration: none; margin-right: 8px; }
+  td a { color: var(--accent); text-decoration: none; margin-inline-end: 8px; }
+  .grid { direction: ltr; }
+  header button { font: inherit; font-size: 12px; cursor: pointer; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); border-radius: 5px; padding: 2px 8px; margin-inline-start: auto; }
   /* time-of-day grid */
   .grid { position: relative; }
   .axis, .row { display: grid; grid-template-columns: 96px 1fr; align-items: center; }
@@ -70,33 +74,35 @@
 </style>
 </head>
 <body>
-<header><h1>Kidberry · Days</h1><a href="/">← Recordings</a><span class="muted" id="sub"></span></header>
+<header><h1 data-i18n="days.title"></h1><a href="/" data-i18n="nav.back"></a><span class="muted" id="sub"></span>
+  <button id="langBtn" data-i18n="app.switch" data-i18n-title="app.switch_title"></button></header>
 <main>
-  <section><h2>Patterns across days</h2><div id="patterns" class="muted">Loading…</div></section>
-  <section><h2>Time of day</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:6px">Each row is a day. Shaded = kindergarten hours. Bars on top = flags (taller and darker = more severe), strip below = detected sounds. Click a flag to listen.</div>
+  <section><h2 data-i18n="days.patterns"></h2><div id="patterns" class="muted" data-i18n="days.loading"></div></section>
+  <section><h2 data-i18n="days.time_of_day"></h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px" data-i18n="days.grid_note"></div>
     <div class="grid" id="grid"></div>
     <div class="legend">
-      <span><i style="background:var(--s-crying)"></i>Crying</span><span><i style="background:var(--s-screaming)"></i>Screaming</span>
-      <span><i style="background:var(--s-yelling)"></i>Yelling</span><span><i style="background:var(--s-impact)"></i>Impact</span>
-      <span>Flag severity: <i style="background:var(--sev1)"></i>1 <i style="background:var(--sev3)"></i>3 <i style="background:var(--sev5)"></i>5</span>
+      <span><i style="background:var(--s-crying)"></i><span data-i18n="cat.crying"></span></span><span><i style="background:var(--s-screaming)"></i><span data-i18n="cat.screaming"></span></span>
+      <span><i style="background:var(--s-yelling)"></i><span data-i18n="lbl.yelling"></span></span><span><i style="background:var(--s-impact)"></i><span data-i18n="lbl.impact"></span></span>
+      <span><span data-i18n="days.flag_sev"></span> <i style="background:var(--sev1)"></i>1 <i style="background:var(--sev3)"></i>3 <i style="background:var(--sev5)"></i>5</span>
     </div>
   </section>
-  <section><h2>Per day</h2><div class="tablewrap"><table id="table"></table></div></section>
+  <section><h2 data-i18n="days.per_day"></h2><div class="tablewrap"><table id="table"></table></div></section>
 </main>
 <div id="tip"></div>
+<script src="/static/i18n.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const LABELS = { physical: 'Physical harm', threat: 'Threat / intimidation', insult: 'Insult / humiliation', secrecy: 'Secrecy',
-  neglect: 'Neglect / deprivation', distress: 'Child distress', profanity: 'Bad language', crying: 'Long crying',
-  screaming: 'Screaming', yelling: 'Yelling', impact: 'Impact sound', other: 'Other' };
-const RESP = { yes: 'adult responded', no: 'no adult heard responding', unclear: 'adult response unclear' };
+const label = c => ['crying', 'profanity', 'yelling', 'impact'].includes(c) ? t('lbl.' + c)
+  : t('cat.' + c) === 'cat.' + c ? c : t('cat.' + c);
+const locale = () => LANG === 'he' ? 'he-IL' : undefined;
+let DATA = null;
 const T0 = 7.5 * 60, T1 = 16.5 * 60;                                   // 07:30 - 16:30
 const pct = m => ((Math.min(Math.max(m, T0), T1) - T0) / (T1 - T0) * 100) + '%';
 const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
 const toMin = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
-const dayName = d => new Date(d + 'T12:00').toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+const dayName = d => new Date(d + 'T12:00').toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' });
 const listen = f => `/#r=${f.rec}&t=${Math.max(0, Math.floor(f.start))}`;
 let flagById = {};
 
@@ -105,18 +111,30 @@ function tip(e, html) { const t = $('#tip'); t.innerHTML = html; t.style.display
   t.style.left = x + 'px'; t.style.top = y + 'px'; }
 function untip() { $('#tip').style.display = 'none'; }
 
+function patternTitle(p) {
+  const v = p.vars || {};
+  return { same_time: t('pat.same_time', { cat: label(p.category), from: v.from, to: v.to }),
+           repeated: t('pat.repeated', { cat: label(p.category), n: v.n }), unattended: t('pat.unattended'),
+           repeat_of_concerning: t('pat.repeat_of_concerning', { cat: label(p.category) }) }[p.kind] || p.title;
+}
+function patternDetail(p) {
+  const v = p.vars;
+  if (!v) return p.detail;
+  return p.kind === 'unattended' ? t('pat.detail_unattended', v)
+    : p.kind === 'repeat_of_concerning' ? t('pat.detail_concerning', { day: dayName(v.day), clock: v.clock, later: v.later.map(dayName).join(', ') })
+    : t('pat.detail_days', v);
+}
+
 function renderPatterns(data) {
   const box = $('#patterns');
   if (!data.patterns.length) {
-    const n = data.school_days.length;
-    box.innerHTML = `No patterns found. ${n} kindergarten day${n === 1 ? '' : 's'} with hours set so far; a pattern needs
-      something to repeat on ${data.needed} of the last ${data.look_back} days. Keep recording — this fills in over the coming weeks.`;
+    box.innerHTML = t('days.no_patterns', [data.school_days.length, data.needed, data.look_back]);
     return;
   }
   box.classList.remove('muted');
   box.innerHTML = data.patterns.map(p => `<div class="pattern">
       <span class="sev s${p.severity}" style="background:var(--sev${p.severity})">${p.severity}</span>
-      <div><div class="title">${esc(p.title)}</div><div class="muted">${esc(p.detail)} · ${p.days.map(dayName).join(', ')}</div>
+      <div><div class="title">${esc(patternTitle(p))}</div><div class="muted">${esc(patternDetail(p))} · ${p.days.map(dayName).join(', ')}</div>
         <div class="links">${p.flags.slice(0, 12).map(id => flagById[id]).filter(Boolean)
           .map(f => `<a href="${listen(f)}">▶ ${dayName(f.day)} ${f.clock}</a>`).join('')}</div></div></div>`).join('');
 }
@@ -129,13 +147,13 @@ function renderGrid(days) {
     const snd = d.sounds.map(s => `<div class="snd" style="left:${pct(s.minute)};width:${(s.duration / 60) / (T1 - T0) * 100}%;background:var(--s-${s.group})"></div>`).join('');
     const fl = d.flags.map(f => `<div class="fl" style="left:${pct(f.minute)};height:${6 + f.severity * 3}px;background:var(--sev${f.severity})"></div>
       <a class="hit" href="${listen(f)}" data-f="${f.id}" style="left:${pct(f.minute)}"></a>`).join('');
-    return `<div class="row"><span class="lbl">${dayName(d.day)}${d.hours ? '' : ' <span class="muted">(no hours)</span>'}</span>
+    return `<div class="row"><span class="lbl">${dayName(d.day)}${d.hours ? '' : ` <span class="muted">${t('days.no_hours')}</span>`}</span>
       <div class="track">${band}${lines.join('')}${snd}${fl}</div></div>`;
   }).join('');
   document.querySelectorAll('.hit').forEach(a => {
     a.onmousemove = e => { const f = flagById[a.dataset.f];
-      tip(e, `<b>${f.clock} · ${esc(LABELS[f.category] || f.category)}</b> · severity ${f.severity} · ${f.source}
-        ${f.adult_response ? `<br>${RESP[f.adult_response]}` : ''}<br>${esc(f.reason)}${f.quote ? `<div class="q" dir="auto">“${esc(f.quote)}”</div>` : ''}`); };
+      tip(e, `<b>${f.clock} · ${esc(label(f.category))}</b> · ${t('days.severity', { n: f.severity })} · ${t('src.' + f.source)}
+        ${f.adult_response ? `<br>${t('resp.' + f.adult_response)}` : ''}<br>${esc(f.reason)}${f.quote ? `<div class="q" dir="auto">“${esc(f.quote)}”</div>` : ''}`); };
     a.onmouseleave = untip;
   });
 }
@@ -143,21 +161,31 @@ function renderGrid(days) {
 function renderTable(days) {
   const maxF = Math.max(1, ...days.map(d => d.flag_count)), maxC = Math.max(1, ...days.map(d => d.crying_minutes));
   const bar = (v, max, unit = '') => `<div class="cellbar"><span>${v}${unit}</span><div class="b" style="width:${v / max * 120}px"></div></div>`;
-  $('#table').innerHTML = `<tr><th>Day</th><th>Hours</th><th>Flags</th><th>Max sev.</th><th>Crying (min)</th>
-      <th>Longest crying</th><th>No adult response</th><th>Bad language</th><th>Marked concerning</th><th>Recordings</th></tr>`
-    + [...days].reverse().map(d => `<tr><td>${dayName(d.day)}</td><td>${d.hours ? d.hours.join('–') : '<span class="muted">not set</span>'}</td>
+  $('#table').innerHTML = `<tr>${t('days.th').map(h => `<th>${h}</th>`).join('')}</tr>`
+    + [...days].reverse().map(d => `<tr><td>${dayName(d.day)}</td><td>${d.hours ? d.hours.join('–') : `<span class="muted">${t('days.not_set')}</span>`}</td>
       <td>${bar(d.flag_count, maxF)}</td>
       <td class="num">${d.max_severity ? `<span class="sev s${d.max_severity}" style="background:var(--sev${d.max_severity})">${d.max_severity}</span>` : '–'}</td>
-      <td>${bar(d.crying_minutes, maxC)}</td><td class="num">${d.longest_crying_minutes} min</td>
+      <td>${bar(d.crying_minutes, maxC)}</td><td class="num">${t('days.min', { n: d.longest_crying_minutes })}</td>
       <td class="num">${d.unattended_crying}</td><td class="num">${d.profanity}</td><td class="num">${d.concerning}</td>
-      <td>${d.recordings.map(r => `<a href="/#r=${r.id}">${new Date(r.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</a>`).join('')}</td></tr>`).join('');
+      <td>${d.recordings.map(r => `<a href="/#r=${r.id}">${new Date(r.started_at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}</a>`).join('')}</td></tr>`).join('');
 }
 
-fetch('/api/days').then(r => r.json()).then(data => {
+function render() {
+  if (!DATA) return;
+  $('#sub').textContent = t('days.count', [DATA.days.length]);
+  renderPatterns(DATA); renderGrid(DATA.days); renderTable(DATA.days);
+}
+$('#langBtn').onclick = () => {
+  setLang(LANG === 'he' ? 'en' : 'he'); render();
+  fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings: { ui_language: LANG } }) });
+};
+(async () => {
+  const [n, data] = await Promise.all([fetch('/api/name').then(r => r.json()), fetch('/api/days').then(r => r.json())]);
+  setLang(n.ui_language);
   for (const d of data.days) for (const f of d.flags) flagById[f.id] = { ...f, day: d.day };
-  $('#sub').textContent = `${data.days.length} day${data.days.length === 1 ? '' : 's'} recorded`;
-  renderPatterns(data); renderGrid(data.days); renderTable(data.days);
-});
+  DATA = data; render();
+})();
 </script>
 </body>
 </html>

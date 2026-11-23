@@ -16,22 +16,26 @@
       --sev1: #d8b440; --sev3: #f0913a; --sev5: #ff6b61; --flag-soft: #3a2224; --ok: #4fc283; }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text);
     display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
   button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text);
     border-radius: 5px; padding: 2px 8px; font-size: 12px; }
   button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
   button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-  aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
-  aside h1 { font-size: 18px; margin: 0; padding: 16px; border-bottom: 1px solid var(--line); }
+  aside { border-inline-end: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+  .top { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .top h1 { font-size: 18px; margin: 0; flex: 1; }
   .search-all { padding: 10px 16px; border-bottom: 1px solid var(--line); }
-  input[type=search] { width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
-    background: var(--bg); color: var(--text); font: inherit; }
+  input[type=search], input[type=text], input[type=password], input[type=email], input[type=number] { width: 100%;
+    padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
   #recs, #globalResults { overflow-y: auto; flex: 1; }
   .rec { padding: 10px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .rec:hover { background: var(--accent-soft); }
-  .rec.active { background: var(--accent-soft); border-left: 3px solid var(--accent); padding-left: 13px; }
+  .rec.active { background: var(--accent-soft); border-inline-start: 3px solid var(--accent); padding-inline-start: 13px; }
   .rec .name { font-weight: 600; word-break: break-all; }
+  [dir=rtl] .rec .name, [dir=rtl] #title { direction: ltr; text-align: right; }   /* file names read left to right */
   .rec .meta { color: var(--muted); font-size: 12px; }
   .badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--line); }
   .sev { display: inline-block; min-width: 20px; text-align: center; font-size: 11px; font-weight: 700; color: #fff;
@@ -43,9 +47,9 @@
   main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .player { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 20px; }
   .player h2 { margin: 0 0 8px; font-size: 15px; word-break: break-all; }
-  audio { width: 100%; }
+  audio { width: 100%; direction: ltr; }
   #timeline { position: relative; height: 34px; margin-top: 8px; background: var(--bg); border: 1px solid var(--line);
-    border-radius: 4px; cursor: pointer; overflow: hidden; }
+    border-radius: 4px; cursor: pointer; overflow: hidden; direction: ltr; }
   #timeline .sp { position: absolute; top: 10px; bottom: 10px; background: var(--speech); }
   #timeline .fl { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; }
   #timeline .ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
@@ -54,7 +58,7 @@
   .said.empty-said { color: var(--muted); font-size: 12px; }
   .said-line { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
   .said-line:hover { background: var(--accent-soft); }
-  .said-line.during { border-left: 3px solid #e0a030; padding-left: 6px; }
+  .said-line.during { border-inline-start: 3px solid #e0a030; padding-inline-start: 6px; }
   .said-line .ts { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; padding-top: 2px; }
   .said-line .tag { color: var(--muted); font-size: 10px; text-transform: uppercase; white-space: nowrap; }
   #timeline .snd { position: absolute; bottom: 0; height: 7px; min-width: 2px; opacity: .85; }
@@ -63,7 +67,7 @@
   .tools { display: flex; gap: 12px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
   .tools input[type=search] { max-width: 280px; }
   .tools label { color: var(--muted); font-size: 13px; }
-  .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .hint { color: var(--muted); font-size: 12px; margin-inline-start: auto; }
   #flagsPanel { background: var(--panel); border-bottom: 1px solid var(--line); max-height: 34vh; overflow-y: auto; }
   #flagsPanel summary { padding: 8px 20px; cursor: pointer; font-weight: 600; position: sticky; top: 0; background: var(--panel); }
   .flag { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 7px 20px; border-top: 1px solid var(--line); align-items: start; }
@@ -79,11 +83,11 @@
   .flag .acts .false_alarm.on { background: var(--ok); border-color: var(--ok); }
   #transcript { overflow-y: auto; flex: 1; padding: 8px 20px 40px; }
   .seg { display: grid; grid-template-columns: 76px 1fr; gap: 10px; padding: 5px 8px; border-radius: 5px; cursor: pointer;
-    border-left: 3px solid transparent; }
+    border-inline-start: 3px solid transparent; }
   .seg:hover { background: var(--accent-soft); }
   .seg.now { background: var(--accent-soft); outline: 1px solid var(--accent); }
   .seg.target { outline: 2px solid var(--sev3); outline-offset: -1px; }
-  .seg.flagged { border-left-color: var(--sev5); background: var(--flag-soft); }
+  .seg.flagged { border-inline-start-color: var(--sev5); background: var(--flag-soft); }
   .seg.lowconf .main { opacity: .55; }
   .seg.filtered .main { opacity: .4; text-decoration: line-through; }
   .seg.outside { opacity: .5; }
@@ -95,20 +99,20 @@
   .seg .why { color: var(--sev5); font-size: 10px; margin-inline-start: 6px; }
   .seg mark { background: var(--hit); color: inherit; }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
-  .seg.named { border-left-color: var(--accent); }
+  .seg.named { border-inline-start-color: var(--accent); }
   .namebadge { font-size: 11px; font-weight: 600; color: var(--accent); margin-inline-start: 6px; white-space: nowrap; }
   .namebadge.maybe { color: var(--muted); font-weight: 400; }
   mark.nm { background: var(--accent-soft); outline: 1px solid var(--accent); border-radius: 3px; }
   #timeline .nmk { position: absolute; top: 0; width: 2px; height: 7px; background: var(--accent); }
   #nameBtn { display: block; width: 100%; margin-top: 8px; padding: 7px 10px; text-align: start; cursor: pointer; }
   .hit.day { color: var(--muted); font-size: 11px; font-weight: 600; margin-top: 8px; cursor: default; }
+  .navlink { display: block; padding: 8px 16px; color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--line); }
   @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: 35vh 1fr; }
     .flag { grid-template-columns: 60px 1fr; } .flag .acts { grid-column: 2; justify-content: flex-start; } }
   /* ---- import & progress */
   .importbar { padding: 10px 16px; border-bottom: 1px solid var(--line); }
   .bigbtn { display: block; width: 100%; padding: 9px 12px; font-size: 14px; font-weight: 600; border-radius: 7px;
     background: var(--accent); color: #fff; border-color: var(--accent); }
-  .bigbtn:disabled { opacity: .5; cursor: default; }
   #job { margin-top: 10px; font-size: 12px; }
   #job .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
   #job .title { font-weight: 600; font-size: 13px; }
@@ -118,7 +122,7 @@
   #job.done .bar > div { background: var(--ok); } #job.error .bar > div, #job.stopped .bar > div { background: var(--sev3); }
   #job .steps { color: var(--muted); margin: 4px 0; }
   #job .steps b { color: var(--text); font-weight: 600; } #job .steps s { text-decoration: none; color: var(--ok); }
-  #job details { margin-top: 4px; } #job pre { white-space: pre-wrap; font-size: 11px; color: var(--muted); margin: 4px 0 0; }
+  #job details { margin-top: 4px; } #job pre { white-space: pre-wrap; font-size: 11px; color: var(--muted); margin: 4px 0 0; direction: ltr; text-align: left; }
   #job .acts { margin-top: 6px; display: flex; gap: 6px; }
   dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
     width: min(460px, calc(100vw - 32px)); padding: 18px 20px; }
@@ -130,101 +134,192 @@
     border-radius: 5px; background: var(--bg); color: var(--text); }
   .check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
   .note { color: var(--muted); font-size: 12px; }
-  .credit { background: var(--flag-soft); border-radius: 6px; padding: 6px 8px; font-size: 12px; margin: 4px 0 8px 24px; }
+  .credit { background: var(--flag-soft); border-radius: 6px; padding: 6px 8px; font-size: 12px; margin: 4px 0 8px; margin-inline-start: 24px; }
   #estBox { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 12px;
-    white-space: pre-wrap; min-height: 48px; margin: 10px 0; }
-  .dlgacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    min-height: 48px; margin: 10px 0; }
+  #estBox .est { display: flex; justify-content: space-between; gap: 12px; padding-inline-start: 10px; }
+  #estBox .est.total { font-weight: 600; border-top: 1px solid var(--line); margin-top: 3px; padding-top: 3px; }
+  #estBox .warn { color: var(--sev3); margin-top: 4px; }
+  .dlgacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; align-items: center; }
   .dlgacts button { padding: 6px 14px; font-size: 13px; }
   .recstate { font-size: 12px; margin-bottom: 6px; }
+  .recstate.ok, .okmsg { color: var(--ok); } .recstate.no, .err { color: var(--sev3); }
   .linkbtn { background: none; border: none; padding: 6px 0 0; color: var(--muted); font-size: 11px; cursor: pointer;
     text-decoration: underline; }
   #supportDlg { width: min(640px, calc(100vw - 32px)); }
   #supportText { max-height: 50vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-    padding: 8px 10px; font-size: 11px; white-space: pre-wrap; }
-  .recstate.ok { color: var(--ok); } .recstate.no { color: var(--sev3); }
+    padding: 8px 10px; font-size: 11px; white-space: pre-wrap; direction: ltr; text-align: left; }
+  /* ---- settings and the setup wizard */
+  #setDlg { width: min(620px, calc(100vw - 32px)); }
+  #setTabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  #setTabs button { padding: 4px 10px; }
+  #setDlg section { display: none; min-height: 260px; }
+  #setDlg section.show { display: block; }
+  #setDlg section > label, .lbl { display: block; margin: 10px 0 3px; font-size: 13px; color: var(--muted); }
+  .legal { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 12px; margin-top: 12px; }
+  .langpick { display: flex; gap: 6px; }
+  .kid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; margin: 6px 0; }
+  .prov { display: block; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; cursor: pointer; }
+  .prov:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .prov .pl { font-weight: 600; } .prov .pd { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .prov .pd.warn { color: var(--sev3); }
+  #aiTestOut { white-space: pre-wrap; font-size: 11px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; margin-top: 6px; max-height: 180px; overflow: auto; direction: auto; }
+  #setStep { margin-inline-end: auto; }
 </style>
 </head>
 <body>
 <aside>
-  <h1>Kidberry</h1>
-  <div class="importbar">
-    <button class="bigbtn" id="importBtn">⬇ Import &amp; process</button>
-    <div id="job" hidden></div>
-    <button class="linkbtn" id="supportBtn" title="A file with technical facts (no audio, transcripts or names) to send when asking for help">Having a problem? Make a support report</button>
+  <div class="top">
+    <h1>Kidberry</h1>
+    <button id="langBtn" data-i18n="app.switch" data-i18n-title="app.switch_title"></button>
+    <button id="setBtn" data-i18n="nav.settings"></button>
   </div>
-  <a href="/days" style="display:block;margin:-4px 0 10px;color:var(--accent);text-decoration:none">📅 Days overview &amp; patterns →</a>
-  <div class="search-all"><input id="qAll" type="search" placeholder="Search all recordings…" dir="auto">
-    <button id="nameBtn" title="Every line where his name, or something that sounds like it, is said">👦 Every time his name is said</button></div>
+  <div class="importbar">
+    <button class="bigbtn" id="importBtn" data-i18n="imp.button"></button>
+    <div id="job" hidden></div>
+    <button class="linkbtn" id="supportBtn" data-i18n="sup.link" data-i18n-title="sup.link_title"></button>
+  </div>
+  <a href="/days" class="navlink" data-i18n="nav.days"></a>
+  <div class="search-all"><input id="qAll" type="search" data-i18n-ph="search.all" dir="auto">
+    <button id="nameBtn" data-i18n-title="name.button_title"></button></div>
   <div id="recs"></div>
   <div id="globalResults" hidden></div>
 </aside>
 <main>
   <div class="player">
-    <h2 id="title">Select a recording</h2>
+    <h2 id="title"></h2>
     <audio id="audio" controls preload="metadata"></audio>
-    <div id="timeline" title="Blue = speech, tall colored marks = flags, bottom strip = sounds (orange crying, red screaming, purple yelling, grey impact). Click to jump."></div>
+    <div id="timeline" data-i18n-title="player.timeline"></div>
     <div class="tools">
-      <input id="q" type="search" placeholder="Filter this transcript…" dir="auto">
-      <label><input id="follow" type="checkbox" checked> Follow playback</label>
-      <label title="Show the AI's best guess of what was said; the recognizer's raw text is shown underneath"><input id="useCorrected" type="checkbox" checked> AI-corrected text</label>
-      <label><input id="flaggedOnly" type="checkbox"> Flagged lines only</label>
-      <label title="Lines where his name, or something that sounds like it, is said"><input id="namedOnly" type="checkbox"> <span id="namedLabel">His name only</span></label>
-      <label title="Lines the filter thinks Whisper invented (e.g. 'תודה רבה', Knesset phrases)"><input id="showFiltered" type="checkbox"> Show filtered</label>
-      <label title="Play the untouched recorder file instead of the volume-boosted copy"><input id="original" type="checkbox"> Original audio</label>
-      <span class="hint">Click a line to play from 3s before · Space play/pause · ←/→ 5s</span>
+      <input id="q" type="search" data-i18n-ph="tools.filter" dir="auto">
+      <label><input id="follow" type="checkbox" checked> <span data-i18n="tools.follow"></span></label>
+      <label data-i18n-title="tools.corrected_title"><input id="useCorrected" type="checkbox" checked> <span data-i18n="tools.corrected"></span></label>
+      <label><input id="flaggedOnly" type="checkbox"> <span data-i18n="tools.flagged"></span></label>
+      <label data-i18n-title="name.only_title"><input id="namedOnly" type="checkbox"> <span id="namedLabel"></span></label>
+      <label data-i18n-title="tools.filtered_title"><input id="showFiltered" type="checkbox"> <span data-i18n="tools.filtered"></span></label>
+      <label data-i18n-title="tools.original_title"><input id="original" type="checkbox"> <span data-i18n="tools.original"></span></label>
+      <span class="hint" data-i18n="tools.hint"></span>
     </div>
   </div>
   <details id="flagsPanel" open hidden><summary id="flagsSummary"></summary><div id="flagsList"></div></details>
-  <div id="transcript"><div class="empty">Transcribe recordings first, then pick one on the left.</div></div>
+  <div id="transcript"><div class="empty" data-i18n="tr.empty_start"></div></div>
 </main>
+
 <dialog id="importDlg">
-  <h3>Import &amp; process a day</h3>
+  <h3 data-i18n="imp.title"></h3>
   <div class="recstate" id="recState"></div>
-  <div class="field"><label for="jDay">Day</label><input type="date" id="jDay"></div>
-  <div class="field"><label for="jFrom">Drop-off</label><input type="time" id="jFrom">
-    <label for="jTo" style="width:auto">Pickup</label><input type="time" id="jTo"></div>
-  <div class="note">Only the kindergarten hours (plus 5 minutes either side) are processed.</div>
-  <div class="check"><input type="checkbox" id="jAi" checked><label for="jAi">AI review (corrects misheard words and
-    flags concerning moments)</label></div>
+  <div class="field"><label for="jDay" data-i18n="imp.day"></label><input type="date" id="jDay"></div>
+  <div class="field"><label for="jFrom" data-i18n="imp.dropoff"></label><input type="time" id="jFrom">
+    <label for="jTo" style="width:auto" data-i18n="imp.pickup"></label><input type="time" id="jTo"></div>
+  <div class="note" data-i18n="imp.hours_note"></div>
+  <div class="check"><input type="checkbox" id="jAi" checked><label for="jAi" data-i18n="imp.ai"></label></div>
   <div class="credit" id="creditNote"></div>
-  <div class="check"><input type="checkbox" id="jFull"><label for="jFull">Review every line, not just around flags
-    <span class="note">(about 5x the tokens)</span></label></div>
-  <div id="estBox">Estimating…</div>
-  <div class="dlgacts"><button id="jCancel">Cancel</button><button class="on" id="jStart">Start</button></div>
+  <div class="check"><input type="checkbox" id="jFull"><label for="jFull"><span data-i18n="imp.full"></span>
+    <span class="note" data-i18n="imp.full_note"></span></label></div>
+  <div id="estBox"></div>
+  <div class="dlgacts"><button id="jCancel" data-i18n="imp.cancel"></button><button class="on" id="jStart" data-i18n="imp.start"></button></div>
 </dialog>
+
 <dialog id="supportDlg">
-  <h3>Support report</h3>
-  <div class="note">Only technical facts: version, hardware, speeds, settings choices and where errors happened.
-    No audio, transcripts, names, flags, recording dates or file paths. Read it, and send it only if you are happy to.
-    Kidberry never sends anything by itself.</div>
+  <h3 data-i18n="sup.title"></h3>
+  <div class="note" data-i18n="sup.note"></div>
   <pre id="supportText"></pre>
-  <div class="dlgacts"><button id="supportCopy">Copy</button><a id="supportSave" download><button>Save file</button></a>
-    <button class="on" id="supportClose">Close</button></div>
+  <div class="note" id="supportHow"></div>
+  <div class="dlgacts"><button id="supportCopy" data-i18n="sup.copy"></button><a id="supportSave" download><button data-i18n="sup.save"></button></a>
+    <a id="supportMail" hidden><button></button></a>
+    <button class="on" id="supportClose" data-i18n="sup.close"></button></div>
 </dialog>
+
+<dialog id="setDlg">
+  <h3 id="setTitle"></h3>
+  <div id="setTabs"></div>
+  <section data-s="welcome">
+    <p class="note" data-i18n="set.intro"></p>
+    <span class="lbl" data-i18n="set.ui_lang"></span>
+    <div class="langpick"><button data-ui="he">עברית</button><button data-ui="en">English</button></div>
+    <div class="note" data-i18n="set.ui_lang_note" style="margin-top:4px"></div>
+    <div class="legal"><span data-i18n="set.legal"></span>
+      <div class="check" id="legalRow"><input type="checkbox" id="legalOk"><label for="legalOk" data-i18n="set.legal_ok"></label></div></div>
+  </section>
+  <section data-s="child">
+    <label for="cName" data-i18n="set.child_name"></label><input type="text" id="cName" dir="auto" data-i18n-ph="set.child_name_ph">
+    <label for="cLatin" data-i18n="set.child_latin"></label><input type="text" id="cLatin" dir="ltr" data-i18n-ph="set.child_latin_ph">
+    <p class="note" data-i18n="set.child_note"></p>
+    <label for="cHeard" data-i18n="set.heard_as"></label><input type="text" id="cHeard" dir="auto" data-i18n-ph="set.heard_as_ph">
+    <label for="cMaybe" data-i18n="set.maybe"></label><input type="text" id="cMaybe" dir="auto" data-i18n-ph="set.maybe_ph">
+    <label for="cCommon" data-i18n="set.common"></label><input type="text" id="cCommon" dir="auto" data-i18n-ph="set.common_ph">
+  </section>
+  <section data-s="kids">
+    <p class="note" data-i18n="set.kids_note"></p>
+    <div class="kid note"><span data-i18n="set.kid_native"></span><span data-i18n="set.kid_latin"></span><span data-i18n="set.kid_heard"></span><span></span></div>
+    <div id="kidList"></div>
+    <button id="kidAdd" data-i18n="set.kid_add"></button>
+  </section>
+  <section data-s="langs">
+    <p class="note" data-i18n="set.langs_note"></p>
+    <div id="langList"></div>
+    <p class="note err" id="langCpu" data-i18n="set.langs_cpu" hidden></p>
+    <label for="sCountry" data-i18n="set.country"></label><input type="text" id="sCountry" dir="auto">
+  </section>
+  <section data-s="recorder">
+    <p class="note" data-i18n="set.rec_note"></p>
+    <label for="sRec" data-i18n="set.rec_path"></label>
+    <div style="display:flex;gap:6px"><input type="text" id="sRec" dir="ltr"><button id="recCheck" data-i18n="set.rec_check"></button></div>
+    <div class="note" id="recCheckOut" style="margin-top:6px"></div>
+  </section>
+  <section data-s="ai">
+    <p class="note"><span data-i18n="set.ai_note"></span> <b data-i18n="set.ai_credits"></b></p>
+    <div id="provList"></div>
+    <div id="keyBox" hidden>
+      <label for="sKey" data-i18n="set.ai_key"></label><input type="password" id="sKey" dir="ltr" autocomplete="off">
+      <div class="note" id="keySaved" hidden><span data-i18n="set.ai_key_saved"></span>
+        <label><input type="checkbox" id="keyRemove"> <span data-i18n="set.ai_key_remove"></span></label></div>
+    </div>
+    <div id="aiMore">
+      <label for="sModel" data-i18n="set.ai_model"></label><input type="text" id="sModel" dir="ltr">
+      <label for="sCap" data-i18n="set.ai_cap"></label><input type="number" id="sCap" min="5000" step="5000">
+      <div class="note" data-i18n="set.ai_cap_note"></div>
+      <div style="margin-top:10px"><button id="aiTest" data-i18n="set.ai_test"></button>
+        <span class="note" data-i18n="set.ai_test_note"></span></div>
+      <pre id="aiTestOut" hidden></pre>
+    </div>
+  </section>
+  <section data-s="help">
+    <p class="note" data-i18n="set.help_note"></p>
+    <label for="sEmail" data-i18n="set.help_email"></label><input type="email" id="sEmail" dir="ltr" data-i18n-ph="set.help_email_ph">
+  </section>
+  <div class="err" id="setErr"></div>
+  <div class="dlgacts"><span class="note" id="setStep"></span>
+    <button id="setBack" data-i18n="set.back"></button><button id="setCancel" data-i18n="set.cancel"></button>
+    <button class="on" id="setNext" data-i18n="set.next"></button><button class="on" id="setSave" data-i18n="set.save"></button></div>
+</dialog>
+
+<script src="/static/i18n.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const audio = $('#audio');
-const CATS = { physical: 'Physical harm', threat: 'Threat / intimidation', insult: 'Insult / humiliation',
-  secrecy: 'Secrecy', neglect: 'Neglect / deprivation', distress: 'Child distress', other: 'Other',
-  profanity: 'Bad language near children', crying: 'Crying', screaming: 'Screaming', yelling: 'Yelling / shouting', impact: 'Slap / impact sound' };
-const SRC = { ai: 'AI review', keyword: 'keyword', sound: 'sound' };
+const cat = c => t('cat.' + c) === 'cat.' + c ? c : t('cat.' + c);
 let recs = [], current = null, segs = [], flags = [], soundEvents = [], segEls = [], nowIdx = -1, flaggedSeg = new Map();
 
-const fmt = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; };
+const fmt = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const hl = (text, q) => { const t = esc(text); if (!q) return t;
-  return t.replace(new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => `<mark>${m}</mark>`); };
+const hl = (text, q) => { const x = esc(text); if (!q) return x;
+  return x.replace(new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => `<mark>${m}</mark>`); };
 const lowConf = s => s.no_speech_prob > 0.6 || s.avg_logprob < -1.0;
 const trLabel = s => (s.translation_lang || 'en').toUpperCase();
 const trDir = s => s.translation_lang === 'he' ? 'rtl' : 'ltr';
-const clock = (rec, t) => rec?.started_at
-  ? new Date(new Date(rec.started_at).getTime() + t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+const locale = () => LANG === 'he' ? 'he-IL' : undefined;
+const clock = (rec, x) => rec?.started_at
+  ? new Date(new Date(rec.started_at).getTime() + x * 1000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   : '';
-const startedLabel = r => r.started_at ? new Date(r.started_at).toLocaleString() : new Date(r.file_mtime * 1000).toLocaleString();
+const startedLabel = r => new Date(r.started_at || r.file_mtime * 1000).toLocaleString(locale());
 const audioUrl = id => `/api/recordings/${id}/audio${$('#original').checked ? '?original=true' : ''}`;
 const sevColor = s => getComputedStyle(document.documentElement).getPropertyValue(s >= 5 ? '--sev5' : s >= 3 ? '--sev3' : '--sev1');
 const activeFlags = () => flags.filter(f => f.review !== 'false_alarm');
+const statusText = s => t('status.' + s) === 'status.' + s ? s : t('status.' + s);
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 async function loadRecs() {
   recs = await (await fetch('/api/recordings')).json();
@@ -232,9 +327,9 @@ async function loadRecs() {
     <div class="rec${current?.id === r.id ? ' active' : ''}" data-id="${r.id}">
       <div class="name">${esc(r.name)}</div>
       <div class="meta">${startedLabel(r)} · ${r.duration ? fmt(r.duration) : '—'}
-        · <span class="badge">${r.status}</span>
-        ${r.flag_count ? `<span class="sev s${r.max_severity}">${r.flag_count} flag${r.flag_count > 1 ? 's' : ''}</span>` : ''}</div>
-    </div>`).join('') : '<div class="empty">No recordings yet.</div>';
+        · <span class="badge">${esc(statusText(r.status))}</span>
+        ${r.flag_count ? `<span class="sev s${r.max_severity}">${t('rec.flags', [r.flag_count])}</span>` : ''}</div>
+    </div>`).join('') : `<div class="empty">${t('rec.none')}</div>`;
   document.querySelectorAll('.rec').forEach(el => el.onclick = () => openRec(+el.dataset.id));
 }
 
@@ -267,24 +362,24 @@ function renderFlags() {
   if (!current) return;
   const act = activeFlags();
   $('#flagsSummary').textContent = flags.length
-    ? `Flags: ${act.length} to review${flags.length > act.length ? ` · ${flags.length - act.length} marked false alarm` : ''}`
-    : (current.status === 'done' ? 'No flags in this recording' : 'Not analyzed yet');
+    ? t('flags.summary', { n: act.length }) + (flags.length > act.length ? t('flags.false_count', { n: flags.length - act.length }) : '')
+    : (current.status === 'done' ? t('flags.none') : t('flags.not_analyzed'));
   const sorted = [...flags].sort((a, b) => (a.review === 'false_alarm') - (b.review === 'false_alarm') || b.severity - a.severity || a.start - b.start);
   $('#flagsList').innerHTML = sorted.map(f => `
     <div class="flag ${f.review || ''}" data-id="${f.id}">
       <div><span class="ts" data-t="${f.start}">▶ ${fmt(f.start)}</span><br><span class="sev s${f.severity}">${f.severity}</span></div>
-      <div><span class="cat">${esc(CATS[f.category] || f.category)}</span><span class="src">${SRC[f.source] || f.source}</span>
-        <div class="reason">${esc(f.reason)}</div>
+      <div><span class="cat">${esc(cat(f.category))}</span><span class="src">${esc(t('src.' + f.source))}</span>
+        <div class="reason" dir="auto">${esc(f.reason)}</div>
         ${f.quote ? `<div class="quote" dir="auto">“${esc(f.quote)}”</div>` : ''}
         ${f.source === 'sound' ? saidAround(f) : ''}</div>
       <div class="acts">
-        <button class="concerning${f.review === 'concerning' ? ' on' : ''}" data-v="concerning">Concerning</button>
-        <button class="false_alarm${f.review === 'false_alarm' ? ' on' : ''}" data-v="false_alarm">False alarm</button>
+        <button class="concerning${f.review === 'concerning' ? ' on' : ''}" data-v="concerning">${t('flags.concerning')}</button>
+        <button class="false_alarm${f.review === 'false_alarm' ? ' on' : ''}" data-v="false_alarm">${t('flags.false_alarm')}</button>
       </div>
     </div>`).join('');
   $('#flagsList').querySelectorAll('.flag').forEach(el => {
     el.querySelector('.ts').onclick = () => { const f = flags.find(x => x.id === +el.dataset.id); showInTranscript(f); playFrom(f.start); };
-    el.querySelectorAll('button').forEach(b => b.onclick = () => setReview(+el.dataset.id, b.dataset.v));
+    el.querySelectorAll('.acts button').forEach(b => b.onclick = () => setReview(+el.dataset.id, b.dataset.v));
     el.querySelectorAll('.said-line').forEach(l => l.onclick = () => playFrom(+l.dataset.t));
   });
 }
@@ -294,30 +389,32 @@ const SAID_BEFORE = 60, SAID_AFTER = 30;
 function saidAround(f) {
   const useCorr = $('#useCorrected').checked;
   const lines = segs.filter(s => !s.filtered && s.end > f.start - SAID_BEFORE && s.start < f.end + SAID_AFTER);
-  const head = `What was said from 1 min before until 30 s after (${lines.length} line${lines.length === 1 ? '' : 's'})`;
-  if (!lines.length) return `<div class="said empty-said">${head}: nothing intelligible. No speech nearby can itself be telling.</div>`;
+  const head = t('said.head', [lines.length]);
+  if (!lines.length) return `<div class="said empty-said">${head}: ${t('said.nothing')}</div>`;
   return `<details class="said"><summary>${head}</summary>${lines.map(s => {
     const during = s.end > f.start && s.start < f.end;
     const text = useCorr && s.corrected ? s.corrected : s.text;
+    const when = during ? t('said.during') : s.start < f.start ? t('said.before') : t('said.after');
     return `<div class="said-line${during ? ' during' : ''}" data-t="${s.start}">
       <span class="ts">${clock(current, s.start) || fmt(s.start)}</span>
-      <span><span dir="auto">${esc(text)}</span>${s.translation ? `<span class="en" dir="${trDir(s)}">${trLabel(s)}: ${esc(s.translation)}</span>` : ''}</span><span class="tag">${s.language || ''}${during ? ' · during' : s.start < f.start ? ' · before' : ' · after'}</span></div>`;
+      <span><span dir="auto">${esc(text)}</span>${s.translation ? `<span class="en" dir="${trDir(s)}">${trLabel(s)}: ${esc(s.translation)}</span>` : ''}</span><span class="tag">${s.language || ''} · ${when}</span></div>`;
   }).join('')}</details>`;
 }
 
 async function setReview(id, value) {
   const f = flags.find(x => x.id === id);
   const review = f.review === value ? null : value;   // clicking again clears it
-  await fetch(`/api/flags/${id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ review }) });
+  await post(`/api/flags/${id}/review`, { review });
   f.review = review;
   renderAll(); loadRecs();
 }
 
 function renderTranscript() {
+  if (!current) return;
   const q = $('#q').value.trim().toLowerCase(), showFiltered = $('#showFiltered').checked,
         useCorr = $('#useCorrected').checked, flaggedOnly = $('#flaggedOnly').checked, namedOnly = $('#namedOnly').checked;
   const box = $('#transcript');
-  if (!segs.length) { box.innerHTML = `<div class="empty">${current.status === 'done' ? 'No speech detected.' : 'Not transcribed yet (' + current.status + ').'}</div>`; segEls = []; return; }
+  if (!segs.length) { box.innerHTML = `<div class="empty">${current.status === 'done' ? t('tr.no_speech') : t('tr.not_yet', { status: statusText(current.status) })}</div>`; segEls = []; return; }
   box.innerHTML = segs.map((s, i) => {
     const corr = useCorr && s.corrected && s.corrected !== s.text ? s.corrected : null;
     const shown = corr || s.text;
@@ -328,15 +425,16 @@ function renderTranscript() {
     const outside = current.school_from != null && (s.start < current.school_from || s.start >= current.school_to);
     const cls = (flaggedSeg.has(s.id) ? ' flagged' : '') + (s.filtered ? ' filtered' : lowConf(s) ? ' lowconf' : '')
       + (outside ? ' outside' : '') + (s.mention ? ' named' : '');
-    const conf = corr && s.corrected_confidence !== 'high' ? `<span class="tag">AI guess · ${esc(s.corrected_confidence)}</span>` : '';
+    const conf = corr && s.corrected_confidence !== 'high'
+      ? `<span class="tag">${t('tr.ai_guess', { conf: esc(t('conf.' + s.corrected_confidence)) })}</span>` : '';
     return `<div class="seg${cls}" data-i="${i}">
       <span class="ts">${fmt(s.start)}<span class="clock">${clock(current, s.start)}</span></span>
       <span><span class="main" dir="auto">${hlName(hl(shown, q))}</span><span class="tag">${s.language || ''}</span>${conf}${nameBadge(s.mention)}
         ${s.filtered ? `<span class="why">${esc(s.filtered)}</span>` : ''}
-        ${outside ? `<span class="tag">outside kindergarten hours</span>` : ''}
+        ${outside ? `<span class="tag">${t('tr.outside')}</span>` : ''}
         ${s.translation ? `<span class="en" dir="${trDir(s)}">${trLabel(s)}: ${hl(s.translation, q)}</span>` : ''}
-        ${corr ? `<span class="heard" dir="auto">heard: ${hlName(hl(s.text, q))}</span>` : ''}</span></div>`;
-  }).join('') || '<div class="empty">No matching lines.</div>';
+        ${corr ? `<span class="heard" dir="auto">${t('tr.heard')} ${hlName(hl(s.text, q))}</span>` : ''}</span></div>`;
+  }).join('') || `<div class="empty">${t('tr.no_match')}</div>`;
   segEls = [];
   box.querySelectorAll('.seg').forEach(el => { segEls[+el.dataset.i] = el; el.onclick = () => playFrom(segs[+el.dataset.i].start); });
 }
@@ -345,21 +443,21 @@ function renderTimeline() {
   const dur = current.duration || (segs.length ? segs[segs.length - 1].end : 0);
   const tl = $('#timeline');
   if (!dur) { tl.innerHTML = ''; return; }
-  const pct = t => (t / dur * 100) + '%';
+  const pct = x => (x / dur * 100) + '%';
   tl.innerHTML = segs.filter(s => !s.filtered).map(s => `<div class="sp" style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, dur / 2000))}"></div>`).join('')
-    + soundEvents.map(e => `<div class="snd ${e.group}" style="left:${pct(e.start)};width:${pct(e.end - e.start)}" title="${esc(fmt(e.start) + ' ' + (CATS[e.group] || e.group) + ' ' + Math.round(e.end - e.start) + 's')}"></div>`).join('')
+    + soundEvents.map(e => `<div class="snd ${e.group}" style="left:${pct(e.start)};width:${pct(e.end - e.start)}" title="${esc(fmt(e.start) + ' ' + cat(e.group) + ' ' + Math.round(e.end - e.start) + 's')}"></div>`).join('')
     + segs.filter(s => s.mention && !s.filtered).map(s => `<div class="nmk" style="left:${pct(s.start)}" title="${esc(fmt(s.start) + ' ' + childName + ': ' + (s.corrected || s.text))}"></div>`).join('')
-    + activeFlags().map(f => `<div class="fl" style="left:${pct(f.start)};background:${sevColor(f.severity)}" title="${esc(fmt(f.start) + ' ' + (CATS[f.category] || '') + ': ' + f.reason)}"></div>`).join('')
+    + activeFlags().map(f => `<div class="fl" style="left:${pct(f.start)};background:${sevColor(f.severity)}" title="${esc(fmt(f.start) + ' ' + cat(f.category) + ': ' + f.reason)}"></div>`).join('')
     + '<div class="ph" id="ph"></div>';
   tl.onclick = e => { const r = tl.getBoundingClientRect(); playFrom((e.clientX - r.left) / r.width * dur, 0); };
 }
 
-function playFrom(t, preroll = 3) { audio.currentTime = Math.max(0, t - preroll); audio.play(); }
+function playFrom(x, preroll = 3) { audio.currentTime = Math.max(0, x - preroll); audio.play(); }
 
 // Scroll the transcript to an alert: its own lines if it has them, else the shown line nearest its time.
 function showInTranscript(f) {
   const ids = new Set(JSON.parse(f.segment_ids || '[]'));
-  let shown = segEls.map((el, i) => el && { el, s: segs[i] }).filter(Boolean);
+  const shown = segEls.map((el, i) => el && { el, s: segs[i] }).filter(Boolean);
   if (!shown.length) return;
   let targets = shown.filter(x => ids.has(x.s.id));
   if (!targets.length) {
@@ -375,9 +473,9 @@ function showInTranscript(f) {
 let holdFollowUntil = 0;
 
 audio.ontimeupdate = () => {
-  const t = audio.currentTime, dur = current?.duration || audio.duration;
-  const ph = $('#ph'); if (ph && dur) ph.style.left = (t / dur * 100) + '%';
-  const i = segs.findIndex(s => s.start <= t && t < s.end + 0.3);
+  const x = audio.currentTime, dur = current?.duration || audio.duration;
+  const ph = $('#ph'); if (ph && dur) ph.style.left = (x / dur * 100) + '%';
+  const i = segs.findIndex(s => s.start <= x && x < s.end + 0.3);
   if (i === nowIdx) return;
   segEls[nowIdx]?.classList.remove('now');
   nowIdx = i;
@@ -385,13 +483,13 @@ audio.ontimeupdate = () => {
   if (el) { el.classList.add('now'); if ($('#follow').checked && Date.now() > holdFollowUntil) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 };
 
-['#q'].forEach(s => $(s).oninput = renderTranscript);
+$('#q').oninput = renderTranscript;
 ['#showFiltered', '#useCorrected', '#flaggedOnly', '#namedOnly'].forEach(s => $(s).onchange = renderTranscript);
 $('#original').onchange = () => {
   if (!current) return;
-  const t = audio.currentTime, playing = !audio.paused;
+  const x = audio.currentTime, playing = !audio.paused;
   audio.src = audioUrl(current.id);
-  audio.addEventListener('loadedmetadata', () => { audio.currentTime = t; if (playing) audio.play(); }, { once: true });
+  audio.addEventListener('loadedmetadata', () => { audio.currentTime = x; if (playing) audio.play(); }, { once: true });
 };
 
 let gTimer;
@@ -402,79 +500,79 @@ async function globalSearch() {
   if (!q) return;
   const hits = await (await fetch('/api/search?q=' + encodeURIComponent(q))).json();
   out.innerHTML = hits.length ? hits.map((h, i) => `<div class="hit" data-i="${i}"><div class="meta">${esc(h.name)} · ${fmt(h.start)}</div><div dir="auto">${hl(h.text, q)}</div></div>`).join('')
-    : '<div class="empty">No matches.</div>';
+    : `<div class="empty">${t('search.none')}</div>`;
   out.querySelectorAll('.hit').forEach(el => el.onclick = () => { const h = hits[+el.dataset.i]; openRec(h.recording_id, h.start); });
 }
 
 // The child's name: highlighted in every line, its own filter, and a list across all recordings.
-let childName = 'his name', nameRe = null;
-fetch('/api/name').then(r => r.json()).then(n => {
-  childName = n.name; nameRe = new RegExp(n.pattern, 'gi');
-  $('#nameBtn').textContent = `👦 Every time ${n.name} is said`; $('#namedLabel').textContent = `${n.name} only`;
-  if (current) renderTranscript();
-});
+let childName = '', nameRe = null;
+function nameLabels() {
+  if (!current) $('#title').textContent = t('player.select');
+  $('#nameBtn').textContent = childName ? t('name.button', { name: childName }) : t('name.button_none');
+  $('#namedLabel').textContent = childName ? t('name.only', { name: childName }) : t('name.only_none');
+}
+async function loadName() {
+  const n = await (await fetch('/api/name')).json();
+  childName = n.name; nameRe = n.name ? new RegExp(n.pattern, 'gi') : null;
+  return n;
+}
 const hlName = html => nameRe ? html.replace(nameRe, m => `<mark class="nm">${m}</mark>`) : html;
 const nameBadge = m => m === 'name' ? `<span class="namebadge">👦 ${esc(childName)}</span>`
-  : m === 'maybe' ? `<span class="namebadge maybe" title="Sounds like his name; listen to check">👦 ${esc(childName)}?</span>` : '';
+  : m === 'maybe' ? `<span class="namebadge maybe" title="${esc(t('name.maybe_title'))}">👦 ${esc(childName)}?</span>` : '';
 $('#nameBtn').onclick = async () => {
   const out = $('#globalResults');
   $('#qAll').value = ''; $('#recs').hidden = true; out.hidden = false;
   const hits = await (await fetch('/api/mentions')).json();
   const sure = hits.filter(h => h.mention === 'name').length;
   let lastDay = '';
-  out.innerHTML = `<div class="hit" id="nameBack" style="color:var(--accent)">← back to recordings</div>
-    <div class="meta" style="padding:4px 16px">${sure} for sure, ${hits.length - sure} that sound like it (marked ?)</div>`
+  out.innerHTML = `<div class="hit" id="nameBack" style="color:var(--accent)">${t('name.back')}</div>
+    <div class="meta" style="padding:4px 16px">${t('name.counts', { sure, maybe: hits.length - sure })}</div>`
     + hits.map((h, i) => {
       const day = (h.started_at || '').slice(0, 10), head = day !== lastDay ? `<div class="hit day">${day}</div>` : '';
       lastDay = day;
-      const t = h.started_at ? new Date(new Date(h.started_at).getTime() + h.start * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : fmt(h.start);
-      return head + `<div class="hit" data-i="${i}"><div class="meta">${t}${nameBadge(h.mention)}</div><div dir="auto">${hlName(esc(h.shown))}</div>${h.translation ? `<div class="en" dir="${trDir(h)}">${trLabel(h)}: ${esc(h.translation)}</div>` : ''}</div>`;
+      const when = h.started_at ? new Date(new Date(h.started_at).getTime() + h.start * 1000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : fmt(h.start);
+      return head + `<div class="hit" data-i="${i}"><div class="meta">${when}${nameBadge(h.mention)}</div><div dir="auto">${hlName(esc(h.shown))}</div>${h.translation ? `<div class="en" dir="${trDir(h)}">${trLabel(h)}: ${esc(h.translation)}</div>` : ''}</div>`;
     }).join('');
   $('#nameBack').onclick = () => { out.hidden = true; $('#recs').hidden = false; };
   out.querySelectorAll('.hit[data-i]').forEach(el => el.onclick = () => { const h = hits[+el.dataset.i]; openRec(h.recording_id, h.start); });
 };
 
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || !current) return;
+  if (['INPUT', 'BUTTON', 'TEXTAREA'].includes(e.target.tagName) || !current || document.querySelector('dialog[open]')) return;
   if (e.code === 'Space') { e.preventDefault(); audio.paused ? audio.play() : audio.pause(); }
   if (e.code === 'ArrowLeft') audio.currentTime -= 5;
   if (e.code === 'ArrowRight') audio.currentTime += 5;
 });
 
-loadRecs().then(() => {
-  const m = location.hash.match(/r=(\d+)/), t = location.hash.match(/t=(\d+)/);   // #r=3&t=8804 from the Days page
-  if (m && recs.some(r => r.id === +m[1])) openRec(+m[1], t ? +t[1] : undefined);
-});
-
 // ---------------------------------------------------------------- import & progress
 let jobTimer = null, lastJobStatus = null;
-const minutes = m => m == null ? '' : m < 1 ? 'under a minute' : m < 90 ? `${Math.round(m)} min` : `${(m / 60).toFixed(1)} hours`;
 async function loadJob() {
   const j = await (await fetch('/api/job')).json();
   const box = $('#job');
   box.className = j.status;
-  box.hidden = j.status === 'idle';
+  if (j.status === 'idle') box.hidden = true; else if (lastJobStatus !== j.status) box.hidden = false;
   $('#importBtn').disabled = j.status === 'running';
   if (j.status !== 'idle') {
-    const stepList = j.steps.map(s => j.done.includes(s.key) ? `<s>✓ ${s.label}</s>`
-      : s.key === j.step && j.status === 'running' ? `<b>${s.label}</b>` : s.label).join(' · ');
-    const head = { running: 'Processing…', done: 'Done', error: 'Stopped with an error', stopped: 'Stopped' }[j.status];
-    const when = j.status === 'running' ? (j.left_min != null ? `about ${minutes(j.left_min)} left` : '')
-      : `took ${minutes(j.elapsed_min)}`;
-    box.innerHTML = `<div class="row"><span class="title">${head}${j.params?.day ? ' · ' + esc(j.params.day) : ''}</span>
+    const label = s => t('step.' + s.key);
+    const stepList = j.steps.map(s => j.done.includes(s.key) ? `<s>✓ ${label(s)}</s>`
+      : s.key === j.step && j.status === 'running' ? `<b>${label(s)}</b>` : label(s)).join(' · ');
+    const when = j.status === 'running' ? (j.left_min != null ? t('job.left', { t: minutesText(j.left_min) }) : '')
+      : t('job.took', { t: minutesText(j.elapsed_min) });
+    const error = j.status === 'stopped' && (j.error || '').startsWith('Stopped by you') ? t('job.stopped_by_you') : j.error;
+    box.innerHTML = `<div class="row"><span class="title">${t('job.' + j.status)}${j.params?.day ? ' · ' + esc(j.params.day) : ''}</span>
         <span>${Math.round(j.pct * 100)}%</span></div>
       <div class="bar"><div style="width:${(j.status === 'done' ? 1 : j.pct) * 100}%"></div></div>
-      ${j.status === 'running' ? `<div class="row"><span>${esc(j.step_label || '')}${j.message ? ': ' + esc(j.message) : ''}</span>
+      ${j.status === 'running' ? `<div class="row"><span>${esc(j.step ? t('step.' + j.step) : '')}${j.message ? ': ' + esc(j.message) : ''}</span>
         <span>${Math.round(j.step_pct * 100)}%</span></div><div class="bar thin"><div style="width:${j.step_pct * 100}%"></div></div>` : ''}
       <div class="row"><span class="steps">${stepList}</span></div>
       <div class="row"><span class="note">${esc(when)}</span></div>
-      ${j.error ? `<div style="color:var(--sev3)">${esc(j.error)}</div>` : ''}
-      ${j.log?.length ? `<details><summary class="note">Details</summary><pre>${esc(j.log.join('\n'))}</pre></details>` : ''}
-      <div class="acts">${j.status === 'running' ? '<button id="jobStop">Stop</button>'
-        : j.status === 'stopped' || j.status === 'error' ? '<button id="jobResume">Continue</button><button id="jobHide">Hide</button>'
-        : '<button id="jobHide">Hide</button>'}</div>`;
+      ${error ? `<div class="err">${esc(error)}</div>` : ''}
+      ${j.log?.length ? `<details><summary class="note">${t('job.details')}</summary><pre>${esc(j.log.join('\n'))}</pre></details>` : ''}
+      <div class="acts">${j.status === 'running' ? `<button id="jobStop">${t('job.stop')}</button>`
+        : j.status === 'stopped' || j.status === 'error' ? `<button id="jobResume">${t('job.continue')}</button><button id="jobHide">${t('job.hide')}</button>`
+        : `<button id="jobHide">${t('job.hide')}</button>`}</div>`;
     $('#jobStop')?.addEventListener('click', async () => {
-      if (!confirm('Stop processing? Transcription continues where it stopped when you start again.')) return;
+      if (!confirm(t('job.confirm_stop'))) return;
       await fetch('/api/job/cancel', { method: 'POST' }); loadJob();
     });
     $('#jobResume')?.addEventListener('click', () => startJob(j.params));
@@ -487,11 +585,10 @@ async function loadJob() {
 }
 
 async function startJob(params) {
-  const r = await fetch('/api/job/start', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ day: params.day, dropoff: params.dropoff || params.hours?.split('-')[0],
-      pickup: params.pickup || params.hours?.split('-')[1], ai: params.ai, full: params.full }) });
-  if (!r.ok) { alert((await r.json()).detail || 'Could not start'); return; }
-  lastJobStatus = 'running'; loadJob();
+  const r = await post('/api/job/start', { day: params.day, dropoff: params.dropoff || params.hours?.split('-')[0],
+    pickup: params.pickup || params.hours?.split('-')[1], ai: params.ai, full: params.full });
+  if (!r.ok) { alert((await r.json()).detail || t('imp.could_not_start')); return; }
+  lastJobStatus = null; loadJob();
 }
 
 let estTimer;
@@ -499,56 +596,251 @@ function jobParams() {
   return { day: $('#jDay').value, dropoff: $('#jFrom').value, pickup: $('#jTo').value,
            ai: $('#jAi').checked, full: $('#jFull').checked && $('#jAi').checked };
 }
+function estimateHtml(e, ai) {
+  const row = (label, value, cls = '') => `<div class="est ${cls}"><span>${label}</span><span>${value}</span></div>`;
+  const audio = e.audio_h.toFixed(1), work = e.work_h < e.audio_h - 0.05 ? e.work_h.toFixed(1) : null;
+  let html = `<div>${t('est.recordings', [e.files.length, audio, work])}</div>`;
+  for (const k of ['copy', 'transcribe', 'sounds', 'ai'])
+    if ((e.minutes[k] || 0) >= 0.5 && (k !== 'ai' || ai)) html += row(t('est.' + k), t('est.approx', { v: minutesText(e.minutes[k]) }));
+  const end = new Date(Date.now() + e.total_minutes * 60000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+  html += row(t('est.total'), t('est.approx', { v: minutesText(e.total_minutes) }), 'total');
+  if (e.total_minutes >= 1) html += `<div class="note">${t('est.finishes', { time: end })}</div>`;
+  if (ai && e.ai_tokens) {
+    html += `<div style="margin-top:4px">${t('est.tokens', { tokens: e.ai_tokens.toLocaleString(), pct: Math.round(e.ai_tokens / e.cap * 100), cap: e.cap.toLocaleString() })}</div>`;
+    if (e.ai_tokens > e.cap - e.tokens_used_today)
+      html += `<div class="warn">! ${t('est.over_cap', { left: Math.max(0, e.cap - e.tokens_used_today).toLocaleString() })}</div>`;
+  }
+  for (const n of e.note_keys || []) html += `<div class="warn">! ${esc(t(n.key, n))}</div>`;
+  return html;
+}
 async function refreshEstimate() {
   const p = jobParams();
   $('#creditNote').hidden = !p.ai && !$('#jAi').disabled; $('#jFull').disabled = !p.ai;
+  const box = $('#estBox');
   if (!p.day || !p.dropoff || !p.pickup || p.dropoff >= p.pickup) {
-    $('#estBox').textContent = 'Set the day, and a drop-off time before the pickup time.'; $('#jStart').disabled = true; return;
+    box.textContent = t('imp.set_times'); $('#jStart').disabled = true; return;
   }
-  $('#estBox').textContent = 'Estimating…';
+  box.textContent = t('imp.estimating');
   const r = await fetch('/api/job/estimate?' + new URLSearchParams(p));
-  if (!r.ok) { $('#estBox').textContent = (await r.json()).detail; $('#jStart').disabled = true; return; }
+  if (!r.ok) { box.textContent = (await r.json()).detail; $('#jStart').disabled = true; return; }
   const e = await r.json();
   $('#jStart').disabled = false;
-  if (!e.files.length) { $('#estBox').textContent = 'Nothing new to transcribe. Starting will re-run flags'
-    + (p.ai ? ' and the AI review' : '') + ' for this day.'; return; }
-  let txt = e.lines.join('\n');
-  if (p.ai && e.ai_tokens > e.cap - e.tokens_used_today)
-    txt += `\n! Only ${(e.cap - e.tokens_used_today).toLocaleString()} tokens are left under today's cap: the AI review will stop there and continue on the next run.`;
-  if (e.notes.length) txt += '\n! ' + e.notes.join('\n! ');
-  $('#estBox').textContent = txt;
+  if (!e.files.length) { box.textContent = p.ai ? t('imp.nothing_ai') : t('imp.nothing'); return; }
+  box.innerHTML = estimateHtml(e, p.ai);
 }
 $('#importBtn').onclick = async () => {
   const s = await (await fetch('/api/job/setup')).json();
   const rs = $('#recState');
-  if (!s.recorder.path) { rs.className = 'recstate no'; rs.textContent = 'No recorder folder is set (recorder.path in settings).'; }
-  else if (!s.recorder.connected) { rs.className = 'recstate no'; rs.textContent = `Recorder not found at ${s.recorder.path}. Plug it in, or continue to process what is already copied.`; }
+  if (!s.recorder.path) { rs.className = 'recstate no'; rs.textContent = t('imp.no_folder'); }
+  else if (!s.recorder.connected) { rs.className = 'recstate no'; rs.textContent = t('imp.not_found', { path: s.recorder.path }); }
   else { rs.className = 'recstate ok'; rs.textContent = s.recorder.new.length
-    ? `Recorder connected: ${s.recorder.new.length} new recording(s)${s.recorder.days.length ? ' from ' + s.recorder.days.join(', ') : ''}.`
-    : 'Recorder connected: no new recordings on it.'; }
+    ? t('imp.connected_new', [s.recorder.new.length]) + (s.recorder.days.length ? t('imp.from_days', { days: s.recorder.days.join(', ') }) : '') + '.'
+    : t('imp.connected_none'); }
   $('#jDay').value = s.day; $('#jFrom').value = s.dropoff; $('#jTo').value = s.pickup;
   const noAi = s.ai.provider === 'none', noKey = s.ai.has_key === false;
   $('#jAi').disabled = noAi || noKey;
-  if (noAi || noKey) $('#jAi').checked = false;
-  $('#creditNote').innerHTML = noAi ? 'AI is off in settings: keyword and sound flags only. Nothing leaves this PC.'
-    : noKey ? `<b>${esc(s.ai.label)}</b> is chosen, but no API key is set yet (data/secrets.json).`
-    : `<b>${esc(s.ai.label)}</b>. ${esc(s.ai.cost)} Only transcript text is sent, never audio.<br>`
-      + `<span class="note">Privacy: ${esc(s.ai.privacy)}</span>`;
+  $('#jAi').checked = !(noAi || noKey);
+  $('#creditNote').innerHTML = noAi ? t('imp.ai_off')
+    : noKey ? t('imp.no_key', { label: esc(aiText(s.ai, 'label')) })
+    : t('imp.ai_note', { label: esc(aiText(s.ai, 'label')), cost: esc(aiText(s.ai, 'cost')) })
+      + `<br><span class="note">${t('imp.privacy', { privacy: esc(aiText(s.ai, 'privacy')) })}</span>`;
   $('#importDlg').showModal();
   refreshEstimate();
 };
 ['#jDay', '#jFrom', '#jTo', '#jAi', '#jFull'].forEach(id => $(id).addEventListener('change', () => {
   clearTimeout(estTimer); estTimer = setTimeout(refreshEstimate, 250); }));
 $('#jCancel').onclick = () => $('#importDlg').close();
-$('#supportBtn').onclick = async () => {
-  $('#supportText').textContent = 'Making the report…'; $('#supportDlg').showModal();
-  const r = await (await fetch('/api/support', { method: 'POST' })).json();
-  $('#supportText').textContent = r.text; $('#supportSave').href = '/api/support/' + encodeURIComponent(r.name);
-};
-$('#supportCopy').onclick = () => navigator.clipboard.writeText($('#supportText').textContent);
-$('#supportClose').onclick = () => $('#supportDlg').close();
 $('#jStart').onclick = () => { const p = jobParams(); $('#importDlg').close(); startJob(p); };
-loadJob();
+
+// ---------------------------------------------------------------- support report
+$('#supportBtn').onclick = async () => {
+  $('#supportText').textContent = t('sup.making'); $('#supportMail').hidden = true; $('#supportHow').textContent = '';
+  $('#supportDlg').showModal();
+  const [r, s] = await Promise.all([(await fetch('/api/support', { method: 'POST' })).json(), (await fetch('/api/settings')).json()]);
+  $('#supportText').textContent = r.text; $('#supportSave').href = '/api/support/' + encodeURIComponent(r.name);
+  const email = s.settings.support?.email;
+  if (email) {
+    $('#supportMail').href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(t('sup.subject'))}&body=${encodeURIComponent(r.text)}`;
+    $('#supportMail').querySelector('button').textContent = t('sup.email', { email });
+    $('#supportMail').hidden = false;
+  } else $('#supportHow').textContent = t('sup.no_email');
+};
+$('#supportCopy').onclick = async () => {
+  await navigator.clipboard.writeText($('#supportText').textContent);
+  $('#supportCopy').textContent = t('sup.copied'); setTimeout(() => { $('#supportCopy').textContent = t('sup.copy'); }, 1500);
+};
+$('#supportClose').onclick = () => $('#supportDlg').close();
+
+// ---------------------------------------------------------------- settings and the first-run wizard
+const SECTIONS = ['welcome', 'child', 'kids', 'langs', 'recorder', 'ai', 'help'];
+let setView = null, setSection = 'welcome', wizard = false;
+const words = v => (v || []).join(', ');
+const splitWords = v => v.split(/[,،\n]/).map(w => w.trim()).filter(Boolean);
+
+function kidRow(k = {}) {
+  const div = document.createElement('div');
+  div.className = 'kid';
+  div.innerHTML = `<input type="text" class="kn" dir="auto" value="${esc(k.native || '')}"><input type="text" class="kl" dir="ltr" value="${esc(k.name || '')}">
+    <input type="text" class="kh" dir="auto" value="${esc(words(k.heard_as))}"><button class="kr">${t('set.kid_remove')}</button>`;
+  div.dataset.note = k.note || '';
+  div.querySelector('.kr').onclick = () => div.remove();
+  return div;
+}
+
+function renderProviders() {
+  const cur = document.querySelector('input[name=prov]:checked')?.value || setView.current_provider;
+  $('#provList').innerHTML = setView.providers.map(p => `<label class="prov"><input type="radio" name="prov" value="${p.provider}"${p.provider === cur ? ' checked' : ''}>
+      <span class="pl">${esc(aiText(p, 'label'))}</span>
+      <div class="pd">${esc(t('set.needs', { needs: aiText(p, 'needs') }))}</div>
+      <div class="pd">${esc(aiText(p, 'cost'))}</div>
+      <div class="pd${p.provider === 'gemini' ? ' warn' : ''}">${esc(aiText(p, 'privacy'))}</div></label>`).join('');
+  document.querySelectorAll('input[name=prov]').forEach(r => r.onchange = providerChanged);
+  providerChanged();
+}
+function providerChanged() {
+  const name = document.querySelector('input[name=prov]:checked')?.value;
+  const p = setView.providers.find(x => x.provider === name);
+  $('#keyBox').hidden = p?.has_key == null;
+  $('#keySaved').hidden = !p?.has_key;
+  $('#keyRemove').checked = false; $('#sKey').value = '';
+  $('#aiMore').hidden = name === 'none';
+}
+
+function fillSettings(view) {
+  setView = view;
+  const S = view.settings;
+  $('#cName').value = S.child.name; $('#cLatin').value = S.child.name_latin;
+  $('#cHeard').value = words(S.child.heard_as); $('#cMaybe').value = words(S.child.maybe_heard_as);
+  $('#cCommon').value = words(S.child.heard_as_common_word);
+  $('#kidList').innerHTML = ''; (S.other_children || []).forEach(k => $('#kidList').append(kidRow(k)));
+  const langs = S.languages?.length ? S.languages : ['he'];
+  $('#langList').innerHTML = Object.keys(view.languages).map(l => `<div class="check"><input type="checkbox" id="lang_${l}" value="${l}"${langs.includes(l) ? ' checked' : ''}>
+    <label for="lang_${l}">${t('set.lang_' + l)}</label></div>`).join('');
+  const cpuNote = () => { $('#langCpu').hidden = !(view.hardware.profile === 'cpu' && document.querySelectorAll('#langList input:checked').length > 1); };
+  document.querySelectorAll('#langList input').forEach(i => i.onchange = cpuNote); cpuNote();
+  $('#sCountry').value = S.country || '';
+  $('#sRec').value = S.recorder?.path || ''; $('#recCheckOut').textContent = '';
+  $('#sModel').value = S.ai?.model || ''; $('#sCap').value = S.ai?.daily_token_cap || 150000;
+  $('#sEmail').value = S.support?.email || '';
+  $('#aiTestOut').hidden = true;
+  $('#provList').innerHTML = ''; renderProviders();
+  document.querySelectorAll('.langpick button').forEach(b => b.classList.toggle('on', b.dataset.ui === LANG));
+}
+
+function formSettings() {
+  const prov = document.querySelector('input[name=prov]:checked')?.value || 'claude-code';
+  const settings = {
+    ui_language: LANG,
+    child: { name: $('#cName').value.trim(), name_latin: $('#cLatin').value.trim(), heard_as: splitWords($('#cHeard').value),
+             maybe_heard_as: splitWords($('#cMaybe').value), heard_as_common_word: splitWords($('#cCommon').value) },
+    other_children: [...document.querySelectorAll('#kidList .kid')].map(d => ({ native: d.querySelector('.kn').value.trim(),
+      name: d.querySelector('.kl').value.trim(), heard_as: splitWords(d.querySelector('.kh').value), note: d.dataset.note }))
+      .filter(k => k.native || k.name),
+    languages: [...document.querySelectorAll('#langList input:checked')].map(i => i.value),
+    country: $('#sCountry').value.trim(),
+    recorder: { path: $('#sRec').value.trim() },
+    ai: { provider: prov, model: $('#sModel').value.trim(), daily_token_cap: parseInt($('#sCap').value, 10) || 150000,
+          mode: setView.settings.ai?.mode || 'smart' },
+    support: { email: $('#sEmail').value.trim() },
+  };
+  const keys = $('#sKey').value.trim() ? { [prov]: $('#sKey').value.trim() } : {};
+  return { settings, keys, remove_keys: $('#keyRemove').checked ? [prov] : [] };
+}
+
+function checkSection(s) {
+  if (s === 'welcome' && wizard && !$('#legalOk').checked) return t('set.legal_needed');
+  if (s === 'child' && !$('#cName').value.trim()) return t('set.name_needed');
+  if (s === 'langs' && !document.querySelectorAll('#langList input:checked').length) return t('set.langs_needed');
+  return '';
+}
+
+function showSection(s) {
+  setSection = s;
+  document.querySelectorAll('#setDlg section').forEach(el => el.classList.toggle('show', el.dataset.s === s));
+  const i = SECTIONS.indexOf(s);
+  $('#setTitle').textContent = wizard ? t('set.wizard_title') : t('set.title');
+  $('#setTabs').hidden = wizard;
+  $('#setTabs').innerHTML = SECTIONS.map(x => `<button data-s="${x}" class="${x === s ? 'on' : ''}">${t('set.s_' + x)}</button>`).join('');
+  $('#setTabs').querySelectorAll('button').forEach(b => b.onclick = () => showSection(b.dataset.s));
+  $('#setStep').textContent = wizard ? t('set.step', { n: i + 1, of: SECTIONS.length }) + ' · ' + t('set.s_' + s) : '';
+  $('#legalRow').hidden = !wizard;
+  $('#setBack').hidden = !wizard || i === 0;
+  $('#setNext').hidden = !wizard || i === SECTIONS.length - 1;
+  $('#setSave').hidden = wizard && i !== SECTIONS.length - 1;
+  $('#setSave').textContent = wizard ? t('set.finish') : t('set.save');
+  $('#setCancel').hidden = wizard;
+  $('#setErr').textContent = '';
+}
+
+async function saveSettings() {
+  for (const s of SECTIONS) { const err = checkSection(s); if (err) { showSection(s); $('#setErr').textContent = err; return false; } }
+  const r = await post('/api/settings', formSettings());
+  const body = await r.json();
+  if (!r.ok) { $('#setErr').textContent = body.detail; return false; }
+  fillSettings(body);
+  await refreshAfterSettings();
+  return true;
+}
+
+async function openSettings(asWizard = false) {
+  wizard = asWizard;
+  fillSettings(await (await fetch('/api/settings')).json());
+  $('#legalOk').checked = false;
+  showSection(asWizard ? 'welcome' : setSection);
+  if (!$('#setDlg').open) $('#setDlg').showModal();
+}
+
+$('#setBtn').onclick = () => openSettings(false);
+$('#setCancel').onclick = () => $('#setDlg').close();
+$('#setDlg').addEventListener('cancel', e => { if (wizard) e.preventDefault(); });   // the wizard is finished, not escaped
+$('#setNext').onclick = () => { const err = checkSection(setSection); if (err) { $('#setErr').textContent = err; return; }
+  showSection(SECTIONS[SECTIONS.indexOf(setSection) + 1]); };
+$('#setBack').onclick = () => showSection(SECTIONS[SECTIONS.indexOf(setSection) - 1]);
+$('#setSave').onclick = async () => { if (await saveSettings()) $('#setDlg').close(); };
+$('#kidAdd').onclick = () => $('#kidList').append(kidRow());
+document.querySelectorAll('.langpick button').forEach(b => b.onclick = () => {
+  switchLang(b.dataset.ui, !wizard);   // the wizard saves it with everything else at the end
+  document.querySelectorAll('.langpick button').forEach(x => x.classList.toggle('on', x.dataset.ui === LANG));
+  renderProviders(); showSection(setSection);
+  document.querySelectorAll('#langList label').forEach(l => { l.textContent = t('set.lang_' + l.htmlFor.slice(5)); });
+  document.querySelectorAll('#kidList .kr').forEach(b => { b.textContent = t('set.kid_remove'); });
+});
+$('#recCheck').onclick = async () => {
+  const r = await (await post('/api/settings/check-recorder', { path: $('#sRec').value })).json();
+  const out = $('#recCheckOut');
+  out.className = r.exists ? 'note okmsg' : 'note err';
+  out.textContent = r.exists ? t('set.rec_ok', [r.wavs]) : t('set.rec_missing');
+};
+$('#aiTest').onclick = async () => {
+  if (!await saveSettings()) return;
+  const out = $('#aiTestOut'); out.hidden = false; out.textContent = t('set.ai_testing'); $('#aiTest').disabled = true;
+  try { const r = await (await fetch('/api/ai/test', { method: 'POST' })).json(); out.textContent = r.output; out.className = r.ok ? '' : 'err'; }
+  finally { $('#aiTest').disabled = false; }
+};
+
+// ---------------------------------------------------------------- language
+function switchLang(lang, save = true) {
+  setLang(lang);
+  nameLabels();
+  if (save) post('/api/settings', { settings: { ui_language: lang } });
+  loadRecs(); if (current) renderAll(); loadJob();
+}
+$('#langBtn').onclick = () => switchLang(LANG === 'he' ? 'en' : 'he');
+
+async function refreshAfterSettings() {
+  await loadName(); setLang(LANG); nameLabels(); loadRecs(); if (current) renderAll();
+}
+
+// ---------------------------------------------------------------- start
+(async () => {
+  const n = await loadName();
+  setLang(n.ui_language); nameLabels();
+  await loadRecs();
+  const m = location.hash.match(/r=(\d+)/), tm = location.hash.match(/t=(\d+)/);   // #r=3&t=8804 from the Days page
+  if (m && recs.some(r => r.id === +m[1])) openRec(+m[1], tm ? +tm[1] : undefined);
+  loadJob();
+  if (n.setup_needed) openSettings(true);
+})();
 </script>
 </body>
 </html>

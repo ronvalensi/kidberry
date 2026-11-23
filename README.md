@@ -14,19 +14,26 @@ transcript **text** sent to the AI provider you choose.
 
 ## Install
 
-1. Download [`Install-Kidberry.cmd`](https://github.com/ronvalensi/kidberry/releases/latest/download/Install-Kidberry.cmd)
-   and double-click it. No admin rights are needed.
-2. Windows may warn about a file from the internet: choose **Run** (or **More info → Run anyway**). The
-   installer is a short script you can read first: [`install/install.ps1`](install/install.ps1).
-3. It checks the PC (GPU or not), asks which drive to use (about 10 GB with a GPU, 6 GB without; the default is
-   `%LOCALAPPDATA%\Kidberry`, another drive gets `D:\Kidberry` and so on), installs a private Python, ffmpeg and
-   the packages there, adds a **Kidberry** icon to the desktop and the Start
-   menu, and opens it. The setup wizard takes it from there. The speech models (1.5-3 GB) download the first
-   time a day is processed.
+1. Download **[Kidberry-Setup.exe](https://github.com/ronvalensi/kidberry/releases/latest/download/Kidberry-Setup.exe)**
+   and open it. No admin rights are needed.
+2. Windows may warn about it, because it is not signed: in the browser choose **Keep**, and if a blue
+   "Windows protected your PC" box appears, click **More info → Run anyway**.
+3. The wizard (English or Hebrew) asks where to install: `%LOCALAPPDATA%\Kidberry` by default, or another drive,
+   such as `D:\Kidberry`. It needs about 10 GB with an NVIDIA GPU, 6 GB without, and recordings add up over time.
+4. It checks the PC (GPU or not), downloads a private Python, ffmpeg and the speech-recognition packages (about
+   3 GB, a few minutes), adds a **Kidberry** icon to the desktop and the Start menu, and opens Kidberry, whose own
+   setup wizard takes it from there. The speech models (1.5-3 GB) download the first time a day is processed.
 
 Your settings, transcripts and recordings live in the `data` and `recordings` folders of the install folder, apart
-from the app, so reinstalling or updating never touches them. Running the installer again updates the existing copy
-in place. To remove Kidberry, run `Uninstall Kidberry.cmd` in the install folder (it asks whether to keep your data).
+from the app. Running a newer `Kidberry-Setup.exe` updates Kidberry in place and keeps them. To remove Kidberry:
+**Windows Settings → Apps → Kidberry → Uninstall** (it asks whether to keep your data).
+
+<details><summary>Without the setup program</summary>
+
+[`install/Install-Kidberry.cmd`](install/Install-Kidberry.cmd) does the same in a console window (it runs
+[`install/install.ps1`](install/install.ps1); `install.ps1 -Source <folder>` installs from a local copy). To build
+the setup program: `install\build-setup.ps1` (needs Inno Setup 6).
+</details>
 
 ## Setup for development
 

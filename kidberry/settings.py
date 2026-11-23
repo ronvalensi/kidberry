@@ -48,7 +48,7 @@ def _merge(base: dict, over: dict) -> dict:
 
 def load() -> dict:
     if SETTINGS_PATH.exists():
-        return _merge(DEFAULTS, json.loads(SETTINGS_PATH.read_text(encoding="utf-8")))
+        return _merge(DEFAULTS, json.loads(SETTINGS_PATH.read_text(encoding="utf-8-sig")))
     return copy.deepcopy(DEFAULTS)
 
 
@@ -62,7 +62,7 @@ def save(settings: dict) -> None:
 def raw() -> dict:
     """The file as saved (no defaults filled in), so saving the form keeps keys the form does not know."""
     try:
-        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return {}
 

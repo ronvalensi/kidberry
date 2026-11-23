@@ -3,6 +3,7 @@
 #   Install-Kidberry.cmd           downloads this script and runs it (what friends double-click)
 #   install.ps1 -Source <folder>   install from a local copy of the code instead of GitHub (for testing)
 #   install.ps1 -Cpu               install the CPU version even when an NVIDIA GPU is present
+#   Kidberry-Setup.exe             the wizard (install/kidberry.iss) runs this hidden with -StatusFile and -Managed
 #
 # What it puts in %LOCALAPPDATA%\Kidberry:
 #   app\         the Kidberry code (replaced on update)
@@ -14,19 +15,32 @@ param(
     [string]$Ref = "main",
     [switch]$Cpu,
     [switch]$NoShortcuts,
-    [switch]$NoLaunch
+    [switch]$NoLaunch,
+    [string]$StatusFile = "",                     # progress lines for the setup wizard: p|percent|step, i|text, fail|text, done
+    [string]$Lang = "",                           # "en" or "he": the app's language on a new install
+    [switch]$Managed                              # run by Kidberry-Setup.exe, which handles shortcuts and uninstalling
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"          # Invoke-WebRequest is many times faster without its progress bar
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Repo = "ronvalensi/kidberry"
 
-function Step($n, $text) { Write-Host ""; Write-Host "[$n/6] $text" -ForegroundColor Magenta }
-function Info($text) { Write-Host "      $text" }
+function Status($line) {
+    if ($StatusFile) { try { Add-Content -Path $StatusFile -Value $line -Encoding ascii } catch { } }
+}
+$Percent = @{ 1 = 2; 2 = 5; 3 = 12; 4 = 18; 5 = 92; 6 = 96 }
+function Step($n, $text) {
+    Write-Host ""; Write-Host "[$n/6] $text" -ForegroundColor Magenta; Status "p|$($Percent[$n])|$n"
+}
+function Info($text) { Write-Host "      $text"; Status "i|$text" }
 function Fail($text) {
     Write-Host ""; Write-Host "Kidberry could not be installed:" -ForegroundColor Red; Write-Host "  $text" -ForegroundColor Red
-    Write-Host ""; Write-Host "Nothing of yours was changed. You can run the installer again." ; exit 1
+    Write-Host ""; Write-Host "Nothing of yours was changed. You can run the installer again."
+    Status "fail|$text"
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 1
 }
+trap { Fail "Unexpected error: $($_.Exception.Message)" }
 function Download($url, $to) {
     for ($i = 1; $i -le 3; $i++) {
         try { Invoke-WebRequest -Uri $url -OutFile $to -UseBasicParsing; return }
@@ -102,6 +116,7 @@ Info "Installing into $InstallDir ($freeGB GB free)."
 if ($freeGB -lt $needGB) { Fail "Not enough free disk space: $freeGB GB free, about $needGB GB needed." }
 try { New-Item -ItemType Directory -Force -Path $InstallDir -ErrorAction Stop | Out-Null }
 catch { Fail "Cannot create $InstallDir ($($_.Exception.Message)). Pick another drive." }
+try { Start-Transcript -Path (Join-Path $InstallDir "install.log") -Force | Out-Null } catch { }   # for support
 
 $tools = Join-Path $InstallDir "tools"
 $tmp = Join-Path $InstallDir "tmp"
@@ -136,7 +151,10 @@ Step 3 "Getting Kidberry"
 $app = Join-Path $InstallDir "app"
 $new = Join-Path $tmp "app"
 if (Test-Path $new) { Remove-Item -Recurse -Force $new }
-if ($Source) {
+if ($Source -and $Source.EndsWith(".zip")) {
+    Info "From the setup program"
+    Expand-Archive $Source -DestinationPath $new -Force
+} elseif ($Source) {
     Info "From $Source"
     New-Item -ItemType Directory -Force -Path $new | Out-Null
     robocopy $Source $new /E /NFL /NDL /NJH /NJS /NP /XD .venv .git data recordings __pycache__ .claude | Out-Null
@@ -162,7 +180,7 @@ $env:UV_LINK_MODE = "copy"
 $venv = Join-Path $InstallDir "venv"
 $py = Join-Path $venv "Scripts\python.exe"
 if (-not (Test-Path $py)) {
-    & $uv python install 3.11 --quiet
+    & $uv python install 3.11 --quiet --no-bin --no-registry   # nothing outside the install folder
     if ($LASTEXITCODE -ne 0) { Fail "Could not install Python." }
     & $uv venv $venv --python 3.11 --python-preference only-managed --quiet
     if ($LASTEXITCODE -ne 0) { Fail "Could not create the Python environment." }
@@ -174,6 +192,7 @@ if ($LASTEXITCODE -ne 0) { Fail "Could not install PyTorch." }
 # The NVIDIA libraries are only needed with a GPU.
 $reqs = Get-Content "$app\requirements.txt" | Where-Object { $gpu -or ($_ -notmatch "^\s*nvidia-") }
 $reqs | Set-Content "$tmp\requirements.txt" -Encoding ascii
+Status "p|80|4"
 Info "Kidberry's packages..."
 & $uv pip install --python $py -r "$tmp\requirements.txt"
 if ($LASTEXITCODE -ne 0) { Fail "Could not install Kidberry's packages." }
@@ -185,16 +204,21 @@ Step 5 "Finishing"
 @{ version = $version; ref = $Ref; device = $device; gpu = $gpu; installed = (Get-Date -Format s) } |
     ConvertTo-Json | Set-Content (Join-Path $InstallDir "install.json") -Encoding utf8
 New-Item -ItemType Directory -Force -Path "$InstallDir\data", "$InstallDir\recordings" | Out-Null
-if (-not $gpu) {   # remember the choice, so a later GPU check cannot flip it
-    $settingsFile = "$InstallDir\data\settings.json"
-    if (-not (Test-Path $settingsFile)) { '{"hardware": {"device": "cpu"}}' | Set-Content $settingsFile -Encoding utf8 }
+$settingsFile = "$InstallDir\data\settings.json"
+if (-not (Test-Path $settingsFile)) {   # a new install: the language picked in the wizard, and CPU when there is no GPU
+    $first = @{}
+    if ($Lang -in "en", "he") { $first.ui_language = $Lang }
+    if (-not $gpu) { $first.hardware = @{ device = "cpu" } }   # so a later GPU check cannot flip it
+    if ($first.Count) { [IO.File]::WriteAllText($settingsFile, ($first | ConvertTo-Json), (New-Object Text.UTF8Encoding $false)) }
 }
-Copy-Item "$app\install\uninstall.ps1" "$InstallDir\uninstall.ps1" -Force
-@"
+if (-not $Managed) {   # the setup program has its own uninstaller (Windows Settings > Apps)
+    Copy-Item "$app\install\uninstall.ps1" "$InstallDir\uninstall.ps1" -Force
+    @"
 @echo off
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1"
 pause
 "@ | Set-Content "$InstallDir\Uninstall Kidberry.cmd" -Encoding ascii
+}
 # Remember the folder, so running the installer again updates this copy instead of asking for a drive.
 New-Item -Path "HKCU:\Software\Kidberry" -Force | Out-Null
 Set-ItemProperty -Path "HKCU:\Software\Kidberry" -Name InstallDir -Value $InstallDir
@@ -227,3 +251,5 @@ if (-not $NoLaunch) {
     Write-Host "  Opening Kidberry now..."
     Start-Process -FilePath (Join-Path $venv "Scripts\pythonw.exe") -ArgumentList "-m", "kidberry.launch" -WorkingDirectory $app
 }
+Status "done"
+try { Stop-Transcript | Out-Null } catch { }
